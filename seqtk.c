@@ -934,7 +934,7 @@ int stk_sample(int argc, char *argv[])
 	gzclose(fp);
 	for (i = 0; i < num; ++i) {
 		kseq_t *p = &buf[i];
-		print_kseq(p);
+		if (p->seq.l) print_kseq(p);
 		free(p->seq.s); free(p->qual.s); free(p->name.s);
 	}
 	free(buf);
