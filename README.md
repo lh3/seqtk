@@ -19,6 +19,10 @@ Examples
 
         seqtk seq -Cl60 in.fa > out.fa
 
+* Convert multi-line FASTQ to 4-line FASTQ:
+
+        seqtk seq -l 100000000 in.fq > out.fq
+
 * Reverse complement FASTA/Q:
 
         seqtk seq -r in.fq > out.fq
