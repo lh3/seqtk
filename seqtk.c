@@ -508,16 +508,20 @@ int stk_subseq(int argc, char *argv[])
 	khash_t(reg) *h = kh_init(reg);
 	gzFile fp;
 	kseq_t *seq;
-	int l, i, j, c, is_tab = 0;
+	int l, i, j, c, is_tab = 0, line = 1024;
 	khint_t k;
-	while ((c = getopt(argc, argv, "t")) >= 0) {
+	while ((c = getopt(argc, argv, "tl:")) >= 0) {
 		switch (c) {
 		case 't': is_tab = 1; break;
+		case 'l': line = atoi(optarg); break;
 		}
 	}
 	if (optind + 2 > argc) {
-		fprintf(stderr, "Usage: seqtk subseq [-t] <in.fa> <in.bed>\n\n");
-		fprintf(stderr, "Note: Use 'samtools faidx' if only a few regions are intended.\n");
+		fprintf(stderr, "\n");
+		fprintf(stderr, "Usage:   seqtk subseq [-t] [-l lineLen=%d] <in.fa> <in.bed>|<name.list>\n\n", line);
+		fprintf(stderr, "Options: -t       TAB delimited output\n");
+		fprintf(stderr, "         -l INT   sequence line length [%d]\n\n", line);
+		fprintf(stderr, "Note: Use 'samtools faidx' if only a few regions are intended.\n\n");
 		return 1;
 	}
 	h = stk_reg_read(argv[optind+1]);
@@ -538,20 +542,22 @@ int stk_subseq(int argc, char *argv[])
 			if (end > seq->seq.l) end = seq->seq.l;
 			if (is_tab == 0) {
 				printf("%c%s", seq->qual.l == seq->seq.l? '@' : '>', seq->name.s);
-				if (end == INT_MAX) {
-					if (beg) printf(":%d", beg+1);
-				} else printf(":%d-%d", beg+1, end);
+				if (beg > 0 || (int)p->a[i] != INT_MAX) {
+					if (end == INT_MAX) {
+						if (beg) printf(":%d", beg+1);
+					} else printf(":%d-%d", beg+1, end);
+				}
 			} else printf("%s\t%d\t", seq->name.s, beg + 1);
 			if (end > seq->seq.l) end = seq->seq.l;
 			for (j = 0; j < end - beg; ++j) {
-				if (is_tab == 0 && j % 60 == 0) putchar('\n');
+				if (is_tab == 0 && j % line == 0) putchar('\n');
 				putchar(seq->seq.s[j + beg]);
 			}
 			putchar('\n');
 			if (seq->qual.l != seq->seq.l || is_tab) continue;
 			printf("+");
 			for (j = 0; j < end - beg; ++j) {
-				if (j % 60 == 0) putchar('\n');
+				if (j % line == 0) putchar('\n');
 				putchar(seq->qual.s[j + beg]);
 			}
 			putchar('\n');
