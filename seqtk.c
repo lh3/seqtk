@@ -118,6 +118,18 @@ char comp_tab[] = {
 	'p', 'q', 'y', 's', 'a', 'a', 'b', 'w', 'x', 'r', 'z', 123, 124, 125, 126, 127
 };
 
+static void print_kseq(const kseq_t *s)
+{
+	printf("%c%s", s->qual.l? '@' : '>', s->name.s);
+	if (s->comment.l) {
+		putchar(' '); puts(s->comment.s);
+	} else putchar('\n');
+	puts(s->seq.s);
+	if (s->qual.l) {
+		puts("+"); puts(s->qual.s);
+	}
+}
+
 /* reverse complement */
 int stk_revseq(int argc, char *argv[])
 {
@@ -139,8 +151,7 @@ int stk_revseq(int argc, char *argv[])
 		}
 		if (seq->seq.l&1)
 			seq->seq.s[seq->seq.l>>1] = comp_tab[(int)seq->seq.s[seq->seq.l>>1]];
-		putchar('>'); puts(seq->name.s);
-		puts(seq->seq.s);
+		print_kseq(seq);
 	}
 	kseq_destroy(seq);
 	gzclose(fp);
@@ -885,15 +896,6 @@ static void cpy_kseq(kseq_t *dst, const kseq_t *src)
 	cpy_kstr(&dst->name, &src->name);
 	cpy_kstr(&dst->seq,  &src->seq);
 	cpy_kstr(&dst->qual, &src->qual);
-}
-
-static void print_kseq(const kseq_t *s)
-{
-	printf("%c%s\n", s->qual.l? '@' : '>', s->name.s);
-	puts(s->seq.s);
-	if (s->qual.l) {
-		puts("+"); puts(s->qual.s);
-	}
 }
 
 int stk_sample(int argc, char *argv[])
