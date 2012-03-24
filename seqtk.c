@@ -410,76 +410,6 @@ int stk_hety(int argc, char *argv[])
 	return 0;
 }
 
-int stk_maskseq(int argc, char *argv[])
-{
-	khash_t(reg) *h = kh_init(reg);
-	gzFile fp;
-	kseq_t *seq;
-	int l, i, j, c, is_complement = 0, is_lower = 0;
-	khint_t k;
-	while ((c = getopt(argc, argv, "cl")) >= 0) {
-		switch (c) {
-		case 'c': is_complement = 1; break;
-		case 'l': is_lower = 1; break;
-		}
-	}
-	if (argc - optind < 2) {
-		fprintf(stderr, "\n");
-		fprintf(stderr, "Usage:   seqtk maskseq [-cl] <in.fa> <in.bed>\n\n");
-		fprintf(stderr, "Options: -c     mask the complement regions\n");
-		fprintf(stderr, "         -l     soft mask (to lowercases)\n\n");
-		return 1;
-	}
-	h = stk_reg_read(argv[optind+1]);
-	// maskseq
-	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
-	seq = kseq_init(fp);
-	while ((l = kseq_read(seq)) >= 0) {
-		k = kh_get(reg, h, seq->name.s);
-		if (k == kh_end(h)) { // not found in the hash table
-			if (is_complement) {
-				for (j = 0; j < l; ++j)
-					seq->seq.s[j] = is_lower? tolower(seq->seq.s[j]) : 'N';
-			}
-		} else {
-			reglist_t *p = &kh_val(h, k);
-			if (!is_complement) {
-				for (i = 0; i < p->n; ++i) {
-					int beg = p->a[i]>>32, end = p->a[i];
-					if (beg >= seq->seq.l) {
-						fprintf(stderr, "[maskseq] start position >= the sequence length.\n");
-						continue;
-					}
-					if (end >= seq->seq.l) end = seq->seq.l;
-					if (is_lower) for (j = beg; j < end; ++j) seq->seq.s[j] = tolower(seq->seq.s[j]);
-					else for (j = beg; j < end; ++j) seq->seq.s[j] = 'N';
-				}
-			} else {
-				int8_t *mask = calloc(seq->seq.l, 1);
-				for (i = 0; i < p->n; ++i) {
-					int beg = p->a[i]>>32, end = p->a[i];
-					if (end >= seq->seq.l) end = seq->seq.l;
-					for (j = beg; j < end; ++j) mask[j] = 1;
-				}
-				for (j = 0; j < l; ++j)
-					if (mask[j] == 0) seq->seq.s[j] = is_lower? tolower(seq->seq.s[j]) : 'N';
-				free(mask);
-			}
-		}
-		printf(">%s", seq->name.s);
-		for (j = 0; j < seq->seq.l; ++j) {
-			if (j%60 == 0) putchar('\n');
-			putchar(seq->seq.s[j]);
-		}
-		putchar('\n');
-	}
-	// free
-	kseq_destroy(seq);
-	gzclose(fp);
-	stk_reg_destroy(h);
-	return 0;
-}
-
 /* subseq */
 
 int stk_subseq(int argc, char *argv[])
@@ -928,6 +858,50 @@ int stk_sample(int argc, char *argv[])
 
 /* seq */
 
+void stk_mask(kseq_t *seq, const khash_t(reg) *h, int is_complement, int mask_chr)
+{
+	unsigned i, j;
+	khiter_t k;
+	k = kh_get(reg, h, seq->name.s);
+	if (k == kh_end(h)) { // not found in the hash table
+		if (is_complement) {
+			if (mask_chr) {
+				for (j = 0; j < seq->seq.l; ++j)
+					seq->seq.s[j] = mask_chr;
+			} else {
+				for (j = 0; j < seq->seq.l; ++j)
+					seq->seq.s[j] = tolower(seq->seq.s[j]);
+			}
+		}
+	} else {
+		reglist_t *p = &kh_val(h, k);
+		if (!is_complement) {
+			for (i = 0; i < p->n; ++i) {
+				unsigned beg = p->a[i]>>32, end = p->a[i];
+				if (beg >= seq->seq.l) continue;
+				if (end > seq->seq.l) end = seq->seq.l;
+				if (!mask_chr) for (j = beg; j < end; ++j) seq->seq.s[j] = tolower(seq->seq.s[j]);
+				else for (j = beg; j < end; ++j) seq->seq.s[j] = mask_chr;
+			}
+		} else {
+			int8_t *mask = calloc(seq->seq.l, 1);
+			for (i = 0; i < p->n; ++i) {
+				unsigned beg = p->a[i]>>32, end = p->a[i];
+				if (end >= seq->seq.l) end = seq->seq.l;
+				for (j = beg; j < end; ++j) mask[j] = 1;
+			}
+			if (mask_chr) {
+				for (j = 0; j < seq->seq.l; ++j)
+					if (mask[j] == 0) seq->seq.s[j] = mask_chr;
+			} else {
+				for (j = 0; j < seq->seq.l; ++j)
+					if (mask[j] == 0) seq->seq.s[j] = tolower(seq->seq.s[j]);
+			}
+			free(mask);
+		}
+	}
+}
+
 int stk_seq(int argc, char *argv[])
 {
 	gzFile fp;
@@ -935,13 +909,16 @@ int stk_seq(int argc, char *argv[])
 	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0;
 	unsigned line_len = 1024;
 	double frac = 1.;
+	khash_t(reg) *h = 0;
 
 	srand48(11);
-	while ((c = getopt(argc, argv, "q:l:Q:ACrn:s:f:")) >= 0) {
+	while ((c = getopt(argc, argv, "q:l:Q:ACrn:s:f:M:c")) >= 0) {
 		switch (c) {
 			case 'A': flag |= 1; break;
 			case 'C': flag |= 2; break;
 			case 'r': flag |= 4; break;
+			case 'c': flag |= 8; break;
+			case 'M': h = stk_reg_read(optarg); break;
 			case 'n': mask_chr = *optarg; break;
 			case 'Q': qual_shift = atoi(optarg); break;
 			case 'q': qual_thres = atoi(optarg); break;
@@ -953,18 +930,21 @@ int stk_seq(int argc, char *argv[])
 	if (argc == optind) {
 		fprintf(stderr, "\n");
 		fprintf(stderr, "Usage:   seqtk seq [options] <in.fq>|<in.fa>\n\n");
-		fprintf(stderr, "Options: -q INT    convert bases with quality lower than INT to lowercase [0]\n");
-		fprintf(stderr, "         -l INT    number of residues per line [%d]\n", line_len);
+		fprintf(stderr, "Options: -q INT    mask bases with quality lower than INT [0]\n");
+		fprintf(stderr, "         -n CHAR   masked bases converted to CHAR; 0 for lowercase [0]\n");
+		fprintf(stderr, "         -l INT    number of residues per line; 0 for 2^32-1 [%d]\n", line_len);
 		fprintf(stderr, "         -Q INT    quality shift: ASCII-INT gives base quality [%d]\n", qual_shift);
-		fprintf(stderr, "         -n CHAR   convert bases with quality lower than -q to CHAR [null]\n");
 		fprintf(stderr, "         -s INT    random seed (effective with -f) [11]\n");
 		fprintf(stderr, "         -f FLOAT  sample FLOAT fraction of sequences [1]\n");
+		fprintf(stderr, "         -M FILE   mask regions in BED or name list FILE [null]\n");
+		fprintf(stderr, "         -c        mask complement region (effective with -M)\n");
 		fprintf(stderr, "         -r        reverse complement\n");
-		fprintf(stderr, "         -a        force FASTA output\n");
+		fprintf(stderr, "         -a        force FASTA output (discard quality)\n");
 		fprintf(stderr, "         -C        drop comments at the header lines\n");
 		fprintf(stderr, "\n");
 		return 1;
 	}
+	if (line_len == 0) line_len = UINT_MAX;
 	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
 	qual_thres += qual_shift;
@@ -984,6 +964,7 @@ int stk_seq(int argc, char *argv[])
 		}
 		if (flag & 1) seq->qual.l = 0;
 		if (flag & 2) seq->comment.l = 0;
+		if (h) stk_mask(seq, h, flag&8, mask_chr); // masking
 		if (flag & 4) { // reverse complement
 			int c0, c1;
 			unsigned i;
@@ -1004,6 +985,7 @@ int stk_seq(int argc, char *argv[])
 	}
 	kseq_destroy(seq);
 	gzclose(fp);
+	stk_reg_destroy(h);
 	return 0;
 }
 
@@ -1013,10 +995,9 @@ static int usage()
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
-	fprintf(stderr, "         comp      get the nucleotide composite of FASTA/Q\n");
+	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
 	fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
-	fprintf(stderr, "         maskseq   mask sequences\n");
 	fprintf(stderr, "         trimfq    trim FASTQ using the Phred algorithm\n");
 	fprintf(stderr, "         hety      regional heterozygosity\n");
 	fprintf(stderr, "         mutfa     point mutate FASTA at specified positions\n");
@@ -1034,7 +1015,6 @@ int main(int argc, char *argv[])
 	if (strcmp(argv[1], "comp") == 0) stk_comp(argc-1, argv+1);
 	else if (strcmp(argv[1], "hety") == 0) stk_hety(argc-1, argv+1);
 	else if (strcmp(argv[1], "subseq") == 0) stk_subseq(argc-1, argv+1);
-	else if (strcmp(argv[1], "maskseq") == 0) stk_maskseq(argc-1, argv+1);
 	else if (strcmp(argv[1], "mutfa") == 0) stk_mutfa(argc-1, argv+1);
 	else if (strcmp(argv[1], "mergefa") == 0) stk_mergefa(argc-1, argv+1);
 	else if (strcmp(argv[1], "randbase") == 0) stk_randbase(argc-1, argv+1);

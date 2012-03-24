@@ -21,7 +21,7 @@ Examples
 
 * Convert multi-line FASTQ to 4-line FASTQ:
 
-        seqtk seq -l 100000000 in.fq > out.fq
+        seqtk seq -l0 in.fq > out.fq
 
 * Reverse complement FASTA/Q:
 
@@ -34,6 +34,10 @@ Examples
 * Extract sequences in regions contained in file `reg.bed`:
 
         seqtk subseq in.fa reg.bed > out.fa
+
+* Mask regions in `reg.bed` to lowercases:
+
+        seqtk seq -M reg.bed in.fa > out.fa
 
 * Subsample 10000 read pairs from two large paired FASTQ files (remember to use the same random seed to keep pairing):
 
