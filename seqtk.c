@@ -179,15 +179,23 @@ int stk_trimfq(int argc, char *argv[])
 	gzFile fp;
 	kseq_t *seq;
 	double param = 0.05, q_int2real[128];
-	int i, c, min_len = 30;
-	while ((c = getopt(argc, argv, "l:q:")) >= 0) {
+	int i, c, min_len = 30, left = 0, right = 0;
+	while ((c = getopt(argc, argv, "l:q:b:e:")) >= 0) {
 		switch (c) {
 			case 'q': param = atof(optarg); break;
 			case 'l': min_len = atoi(optarg); break;
+			case 'b': left = atoi(optarg); break;
+			case 'e': right = atoi(optarg); break;
 		}
 	}
 	if (optind == argc) {
-		fprintf(stderr, "Usage: seqtk trimfq [-l minLen=30] [-q thres=0.05] <in.fa>\n");
+		fprintf(stderr, "\n");
+		fprintf(stderr, "Usage:   seqtk trimfq [options] <in.fq>\n\n");
+		fprintf(stderr, "Options: -q FLOAT    error rate threshold (disabled by -b/-e) [%.2f]\n", param);
+		fprintf(stderr, "         -l INT      maximally trim down to INT bp (disabled by -b/-e) [%d]\n", min_len);
+		fprintf(stderr, "         -b INT      trim INT bp from left (non-zero to disable -q/-l) [0]\n");
+		fprintf(stderr, "         -e INT      trim INT bp from right (non-zero to disable -q/-l) [0]\n");
+		fprintf(stderr, "\n");
 		return 1;
 	}
 	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
@@ -197,8 +205,9 @@ int stk_trimfq(int argc, char *argv[])
 	while (kseq_read(seq) >= 0) {
 		int beg, tmp, end;
 		double s, max;
-		if (seq->qual.l == 0) continue; // no quality
-		if (seq->qual.l > min_len) {
+		if (left || right) {
+			beg = left; end = seq->seq.l - right;
+		} else if (seq->qual.l > min_len) {
 			for (i = 0, beg = tmp = 0, end = seq->qual.l, s = max = 0.; i < seq->qual.l; ++i) {
 				int q = seq->qual.s[i];
 				if (q < 36) q = 36;
@@ -217,12 +226,13 @@ int stk_trimfq(int argc, char *argv[])
 				}
 				end = beg + min_len;
 			}
-		} else beg = 0, end = seq->qual.l;
-		seq->seq.s[end] = seq->qual.s[end] = '\n';
+		} else beg = 0, end = seq->seq.l;
 		putchar('@'); puts(seq->name.s);
-		fwrite(seq->seq.s + beg, 1, end - beg + 1, stdout);
-		puts("+");
-		fwrite(seq->qual.s + beg, 1, end - beg + 1, stdout);
+		fwrite(seq->seq.s + beg, 1, end - beg, stdout); putchar('\n');
+		if (seq->qual.l) {
+			puts("+");
+			fwrite(seq->qual.s + beg, 1, end - beg, stdout); putchar('\n');
+		}
 	}
 	kseq_destroy(seq);
 	gzclose(fp);

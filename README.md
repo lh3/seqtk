@@ -43,3 +43,7 @@ Examples
 * Trim low-quality bases from both ends using the Phred algorithm:
 
         seqtk trimfq in.fq > out.fq
+
+* Trim 5bp from the left end of each read and 10bp from the right end:
+
+        seqtk trimfq -b 5 -e 10 in.fa > out.fa
