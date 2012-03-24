@@ -954,17 +954,17 @@ static int usage()
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n\n");
 	fprintf(stderr, "Command: comp      get the nucleotide composite of FASTA/Q\n");
 	fprintf(stderr, "         revseq    reverse complement DNA sequences\n");
+	fprintf(stderr, "         fq2fa     convert FASTQ to FASTA\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
 	fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
-	fprintf(stderr, "         hety      regional heterozygosity\n");
-	fprintf(stderr, "         fq2fa     convert FASTQ to FASTA\n");
 	fprintf(stderr, "         maskseq   mask sequences\n");
+	fprintf(stderr, "         trimfq    trim FASTQ using the Phred algorithm\n");
+	fprintf(stderr, "         hety      regional heterozygosity\n");
 	fprintf(stderr, "         mutfa     point mutate FASTA at specified positions\n");
 	fprintf(stderr, "         mergefa   merge two FASTA/Q files\n");
 	fprintf(stderr, "         randbase  choose a random base from hets\n");
 	fprintf(stderr, "         cutN      cut sequence at long N\n");
 	fprintf(stderr, "         listhet   extract the position of each het\n");
-	fprintf(stderr, "         trimfq    trim FASTQ using the Phred algorithm\n");
 	fprintf(stderr, "\n");
 	return 1;
 }
