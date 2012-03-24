@@ -143,44 +143,34 @@ char comp_tab[] = {
 	'p', 'q', 'y', 's', 'a', 'a', 'b', 'w', 'x', 'r', 'z', 123, 124, 125, 126, 127
 };
 
-static void print_kseq(const kseq_t *s)
+static void stk_printstr(const kstring_t *s, unsigned line_len)
 {
-	printf("%c%s", s->qual.l? '@' : '>', s->name.s);
-	if (s->comment.l) {
-		putchar(' '); puts(s->comment.s);
-	} else putchar('\n');
-	puts(s->seq.s);
-	if (s->qual.l) {
-		puts("+"); puts(s->qual.s);
+	if (line_len != UINT_MAX) {
+		int i, rest = s->l;
+		for (i = 0; i < s->l; i += line_len, rest -= line_len) {
+			putchar('\n');
+			if (rest > line_len) fwrite(s->s + i, 1, line_len, stdout);
+			else fwrite(s->s + i, 1, rest, stdout);
+		}
+		putchar('\n');
+	} else {
+		putchar('\n');
+		puts(s->s);
 	}
 }
 
-/* reverse complement */
-int stk_revseq(int argc, char *argv[])
+void stk_printseq(const kseq_t *s, int line_len)
 {
-	gzFile fp;
-	kseq_t *seq;
-	if (optind == argc) {
-		fprintf(stderr, "Usage: seqtk revseq <in.fa>\n");
-		return 1;
+	putchar(s->qual.l? '@' : '>');
+	fputs(s->name.s, stdout);
+	if (s->comment.l) {
+		putchar(' '); fputs(s->comment.s, stdout);
 	}
-	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
-	seq = kseq_init(fp);
-	while (kseq_read(seq) >= 0) {
-		int i, c0, c1;
-		for (i = 0; i < seq->seq.l>>1; ++i) {
-			c0 = comp_tab[(int)seq->seq.s[i]];
-			c1 = comp_tab[(int)seq->seq.s[seq->seq.l - 1 - i]];
-			seq->seq.s[i] = c1;
-			seq->seq.s[seq->seq.l - 1 - i] = c0;
-		}
-		if (seq->seq.l&1)
-			seq->seq.s[seq->seq.l>>1] = comp_tab[(int)seq->seq.s[seq->seq.l>>1]];
-		print_kseq(seq);
+	stk_printstr(&s->seq, line_len);
+	if (s->qual.l) {
+		putchar('+');
+		stk_printstr(&s->qual, line_len);
 	}
-	kseq_destroy(seq);
-	gzclose(fp);
-	return 0;
 }
 
 /* quality based trimming with Mott's algorithm */
@@ -403,53 +393,6 @@ int stk_hety(int argc, char *argv[])
 				++cnt[z];
 			}
 		}
-	}
-	free(buf);
-	kseq_destroy(seq);
-	gzclose(fp);
-	return 0;
-}
-
-/* fq2fa */
-int stk_fq2fa(int argc, char *argv[])
-{
-	gzFile fp;
-	kseq_t *seq;
-	char *buf;
-	int l, i, c, qual_thres = 0, linelen = 60;
-	while ((c = getopt(argc, argv, "q:l:")) >= 0) {
-		switch (c) {
-			case 'q': qual_thres = atoi(optarg); break;
-			case 'l': linelen = atoi(optarg); break;
-		}
-	}
-	if (argc == optind) {
-		fprintf(stderr, "Usage: seqtk fq2fa [-q qualThres=0] [-l lineLen=60] <in.fq>\n");
-		return 1;
-	}
-	buf = linelen > 0? malloc(linelen + 1) : 0;
-	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
-	seq = kseq_init(fp);
-	while ((l = kseq_read(seq)) >= 0) {
-		if (seq->qual.l && qual_thres > 0) {
-			for (i = 0; i < l; ++i)
-				if (seq->qual.s[i] - 33 < qual_thres)
-					seq->seq.s[i] = tolower(seq->seq.s[i]);
-		}
-		putchar('>');
-		if (seq->comment.l) {
-			fputs(seq->name.s, stdout);
-			putchar(' ');
-			puts(seq->comment.s);
-		} else puts(seq->name.s);
-		if (buf) { // multi-line
-			for (i = 0; i < l; i += linelen) {
-				int x = i + linelen < l? linelen : l - i;
-				memcpy(buf, seq->seq.s + i, x);
-				buf[x] = 0;
-				puts(buf);
-			}
-		} else puts(seq->seq.s);
 	}
 	free(buf);
 	kseq_destroy(seq);
@@ -959,16 +902,95 @@ int stk_sample(int argc, char *argv[])
 		if (num) {
 			uint64_t y = n_seqs - 1 < num? n_seqs - 1 : (uint64_t)(r * n_seqs);
 			if (y < num) cpy_kseq(&buf[y], seq);
-		} else if (r < frac) print_kseq(seq);
+		} else if (r < frac) stk_printseq(seq, UINT_MAX);
 	}
 	kseq_destroy(seq);
 	gzclose(fp);
 	for (i = 0; i < num; ++i) {
 		kseq_t *p = &buf[i];
-		if (p->seq.l) print_kseq(p);
+		if (p->seq.l) stk_printseq(p, UINT_MAX);
 		free(p->seq.s); free(p->qual.s); free(p->name.s);
 	}
 	free(buf);
+	return 0;
+}
+
+int stk_seq(int argc, char *argv[])
+{
+	gzFile fp;
+	kseq_t *seq;
+	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0;
+	unsigned line_len = 1024;
+	double frac = 1.;
+
+	srand48(11);
+	while ((c = getopt(argc, argv, "q:l:Q:ACrn:s:f:")) >= 0) {
+		switch (c) {
+			case 'A': flag |= 1; break;
+			case 'C': flag |= 2; break;
+			case 'r': flag |= 4; break;
+			case 'n': mask_chr = *optarg; break;
+			case 'Q': qual_shift = atoi(optarg); break;
+			case 'q': qual_thres = atoi(optarg); break;
+			case 'l': line_len = atoi(optarg); break;
+			case 's': srand48(atoi(optarg)); break;
+			case 'f': frac = atof(optarg); break;
+		}
+	}
+	if (argc == optind) {
+		fprintf(stderr, "\n");
+		fprintf(stderr, "Usage:   seqtk seq [options] <in.fq>|<in.fa>\n\n");
+		fprintf(stderr, "Options: -q INT    convert bases with quality lower than INT to lowercase [0]\n");
+		fprintf(stderr, "         -l INT    number of residues per line [%d]\n", line_len);
+		fprintf(stderr, "         -Q INT    quality shift: ASCII-INT gives base quality [%d]\n", qual_shift);
+		fprintf(stderr, "         -n CHAR   convert bases with quality lower than -q to CHAR [null]\n");
+		fprintf(stderr, "         -s INT    random seed (effective with -f) [11]\n");
+		fprintf(stderr, "         -f FLOAT  sample FLOAT fraction of sequences [1]\n");
+		fprintf(stderr, "         -r        reverse complement\n");
+		fprintf(stderr, "         -a        force FASTA output\n");
+		fprintf(stderr, "         -C        drop comments at the header lines\n");
+		fprintf(stderr, "\n");
+		return 1;
+	}
+	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
+	seq = kseq_init(fp);
+	qual_thres += qual_shift;
+	while (kseq_read(seq) >= 0) {
+		if (frac < 1. && drand48() >= frac) continue;
+		if (seq->qual.l && qual_thres > qual_shift) {
+			unsigned i;
+			if (mask_chr) {
+				for (i = 0; i < seq->seq.l; ++i)
+					if (seq->qual.s[i] < qual_thres)
+						seq->seq.s[i] = mask_chr;
+			} else {
+				for (i = 0; i < seq->seq.l; ++i)
+					if (seq->qual.s[i] < qual_thres)
+						seq->seq.s[i] = tolower(seq->seq.s[i]);
+			}
+		}
+		if (flag & 1) seq->qual.l = 0;
+		if (flag & 2) seq->comment.l = 0;
+		if (flag & 4) { // reverse complement
+			int c0, c1;
+			unsigned i;
+			for (i = 0; i < seq->seq.l>>1; ++i) { // reverse complement sequence
+				c0 = comp_tab[(int)seq->seq.s[i]];
+				c1 = comp_tab[(int)seq->seq.s[seq->seq.l - 1 - i]];
+				seq->seq.s[i] = c1;
+				seq->seq.s[seq->seq.l - 1 - i] = c0;
+			}
+			if (seq->seq.l & 1) // complement the remaining base
+				seq->seq.s[seq->seq.l>>1] = comp_tab[(int)seq->seq.s[seq->seq.l>>1]];
+			if (seq->qual.l) {
+				for (i = 0; i < seq->seq.l>>1; ++i) // reverse quality
+					c0 = seq->qual.s[i], seq->qual.s[i] = seq->qual.s[seq->qual.l - 1 - i], seq->qual.s[seq->qual.l - 1 - i] = c0;
+			}
+		}
+		stk_printseq(seq, line_len);
+	}
+	kseq_destroy(seq);
+	gzclose(fp);
 	return 0;
 }
 
@@ -977,9 +999,8 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n\n");
-	fprintf(stderr, "Command: comp      get the nucleotide composite of FASTA/Q\n");
-	fprintf(stderr, "         revseq    reverse complement DNA sequences\n");
-	fprintf(stderr, "         fq2fa     convert FASTQ to FASTA\n");
+	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
+	fprintf(stderr, "         comp      get the nucleotide composite of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
 	fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
 	fprintf(stderr, "         maskseq   mask sequences\n");
@@ -999,7 +1020,6 @@ int main(int argc, char *argv[])
 	if (argc == 1) return usage();
 	if (strcmp(argv[1], "comp") == 0) stk_comp(argc-1, argv+1);
 	else if (strcmp(argv[1], "hety") == 0) stk_hety(argc-1, argv+1);
-	else if (strcmp(argv[1], "fq2fa") == 0) stk_fq2fa(argc-1, argv+1);
 	else if (strcmp(argv[1], "subseq") == 0) stk_subseq(argc-1, argv+1);
 	else if (strcmp(argv[1], "maskseq") == 0) stk_maskseq(argc-1, argv+1);
 	else if (strcmp(argv[1], "mutfa") == 0) stk_mutfa(argc-1, argv+1);
@@ -1008,10 +1028,10 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "cutN") == 0) stk_cutN(argc-1, argv+1);
 	else if (strcmp(argv[1], "listhet") == 0) stk_listhet(argc-1, argv+1);
 	else if (strcmp(argv[1], "famask") == 0) stk_famask(argc-1, argv+1);
-	else if (strcmp(argv[1], "revseq") == 0) stk_revseq(argc-1, argv+1);
 	else if (strcmp(argv[1], "trimfq") == 0) stk_trimfq(argc-1, argv+1);
 	else if (strcmp(argv[1], "hrun") == 0) stk_hrun(argc-1, argv+1);
 	else if (strcmp(argv[1], "sample") == 0) stk_sample(argc-1, argv+1);
+	else if (strcmp(argv[1], "seq") == 0) stk_seq(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[main] unrecognized commad '%s'. Abort!\n", argv[1]);
 		return 1;
