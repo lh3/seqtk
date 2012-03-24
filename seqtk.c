@@ -187,7 +187,7 @@ int stk_trimfq(int argc, char *argv[])
 		}
 	}
 	if (optind == argc) {
-		fprintf(stderr, "Usage: seqtk trimfq [-l minLen=30] [-q thres=0.05] <in.fa>\n\n");
+		fprintf(stderr, "Usage: seqtk trimfq [-l minLen=30] [-q thres=0.05] <in.fa>\n");
 		return 1;
 	}
 	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
