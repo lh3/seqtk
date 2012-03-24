@@ -1,5 +1,5 @@
-CC=			gcc
-CFLAGS=		-g -Wall -O2
+CC=gcc
+CFLAGS=-g -Wall -O2
 
 seqtk:seqtk.c khash.h kseq.h
 		$(CC) $(CFLAGS) seqtk.c -o $@ -lz -lm

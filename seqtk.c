@@ -866,6 +866,79 @@ int stk_hrun(int argc, char *argv[])
 	return 0;
 }
 
+/* sample */
+
+static void cpy_kstr(kstring_t *dst, const kstring_t *src)
+{
+	if (src->l == 0) return;
+	if (src->l + 1 > dst->m) {
+		dst->m = src->l + 1;
+		kroundup32(dst->m);
+		dst->s = realloc(dst->s, dst->m);
+	}
+	dst->l = src->l;
+	memcpy(dst->s, src->s, src->l + 1);
+}
+
+static void cpy_kseq(kseq_t *dst, const kseq_t *src)
+{
+	cpy_kstr(&dst->name, &src->name);
+	cpy_kstr(&dst->seq,  &src->seq);
+	cpy_kstr(&dst->qual, &src->qual);
+}
+
+static void print_kseq(const kseq_t *s)
+{
+	printf("%c%s\n", s->qual.l? '@' : '>', s->name.s);
+	puts(s->seq.s);
+	if (s->qual.l) {
+		puts("+"); puts(s->qual.s);
+	}
+}
+
+int stk_sample(int argc, char *argv[])
+{
+	int c;
+	uint64_t i, num = 0, n_seqs = 0;
+	double frac = 0.;
+	gzFile fp;
+	kseq_t *seq, *buf = 0;
+
+	srand48(11);
+	while ((c = getopt(argc, argv, "s:")) >= 0)
+		switch (c) {
+		case 's': srand48(atoi(optarg)); break;
+		}
+	if (optind + 2 > argc) {
+		fprintf(stderr, "Usage: seqtk sample [-s seed=11] <in.fa> <frac>|<number>\n\n");
+		fprintf(stderr, "Warning: Large memory consumption for large <number>.\n");
+		return 1;
+	}
+	frac = atof(argv[optind+1]);
+	if (frac > 1.) num = (uint64_t)(frac + .499), frac = 0.;
+	if (num > 0) buf = calloc(num, sizeof(kseq_t));
+
+	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
+	seq = kseq_init(fp);
+	while (kseq_read(seq) >= 0) {
+		double r = drand48();
+		++n_seqs;
+		if (num) {
+			uint64_t y = n_seqs - 1 < num? n_seqs - 1 : (uint64_t)(r * n_seqs);
+			if (y < num) cpy_kseq(&buf[y], seq);
+		} else if (r < frac) print_kseq(seq);
+	}
+	kseq_destroy(seq);
+	gzclose(fp);
+	for (i = 0; i < num; ++i) {
+		kseq_t *p = &buf[i];
+		print_kseq(p);
+		free(p->seq.s); free(p->qual.s); free(p->name.s);
+	}
+	free(buf);
+	return 0;
+}
+
 /* main function */
 static int usage()
 {
@@ -873,9 +946,10 @@ static int usage()
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n\n");
 	fprintf(stderr, "Command: comp      get the nucleotide composite of FASTA/Q\n");
 	fprintf(stderr, "         revseq    reverse complement DNA sequences\n");
+	fprintf(stderr, "         sample    subsample sequences\n");
+	fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
 	fprintf(stderr, "         hety      regional heterozygosity\n");
 	fprintf(stderr, "         fq2fa     convert FASTQ to FASTA\n");
-	fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
 	fprintf(stderr, "         maskseq   mask sequences\n");
 	fprintf(stderr, "         mutfa     point mutate FASTA at specified positions\n");
 	fprintf(stderr, "         mergefa   merge two FASTA/Q files\n");
@@ -904,6 +978,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "revseq") == 0) stk_revseq(argc-1, argv+1);
 	else if (strcmp(argv[1], "trimfq") == 0) stk_trimfq(argc-1, argv+1);
 	else if (strcmp(argv[1], "hrun") == 0) stk_hrun(argc-1, argv+1);
+	else if (strcmp(argv[1], "sample") == 0) stk_sample(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[main] unrecognized commad '%s'. Abort!\n", argv[1]);
 		return 1;
