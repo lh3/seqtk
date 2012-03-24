@@ -414,9 +414,10 @@ int stk_maskseq(int argc, char *argv[])
 		}
 	}
 	if (argc - optind < 2) {
+		fprintf(stderr, "\n");
 		fprintf(stderr, "Usage:   seqtk maskseq [-cl] <in.fa> <in.bed>\n\n");
 		fprintf(stderr, "Options: -c     mask the complement regions\n");
-		fprintf(stderr, "         -l     soft mask (to lower cases)\n");
+		fprintf(stderr, "         -l     soft mask (to lowercases)\n\n");
 		return 1;
 	}
 	h = stk_reg_read(argv[optind+1]);
@@ -486,7 +487,7 @@ int stk_subseq(int argc, char *argv[])
 	}
 	if (optind + 2 > argc) {
 		fprintf(stderr, "\n");
-		fprintf(stderr, "Usage:   seqtk subseq [-t] [-l lineLen=%d] <in.fa> <in.bed>|<name.list>\n\n", line);
+		fprintf(stderr, "Usage:   seqtk subseq [options] <in.fa> <in.bed>|<name.list>\n\n");
 		fprintf(stderr, "Options: -t       TAB delimited output\n");
 		fprintf(stderr, "         -l INT   sequence line length [%d]\n\n", line);
 		fprintf(stderr, "Note: Use 'samtools faidx' if only a few regions are intended.\n\n");
@@ -914,6 +915,8 @@ int stk_sample(int argc, char *argv[])
 	free(buf);
 	return 0;
 }
+
+/* seq */
 
 int stk_seq(int argc, char *argv[])
 {
