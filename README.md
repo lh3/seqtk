@@ -8,7 +8,7 @@ Examples
 
 * Convert FASTQ to FASTA:
 
-    `seqtk seq -a in.fq.gz > out.fa`
+        seqtk seq -a in.fq.gz > out.fa
 
 * Convert ILLUMINA 1.3+ FASTQ to FASTA and mask bases with quality lower than 20 to lowercases (the 1st command line) or to `N` (the 2nd):
 
@@ -17,19 +17,19 @@ Examples
 
 * Fold long FASTA/Q lines and remove FASTA/Q comments:
 
-    `seqtk seq -Cl60 in.fa > out.fa`
+        seqtk seq -Cl60 in.fa > out.fa
 
 * Reverse complement FASTA/Q:
 
-    `seqtk seq -r in.fq > out.fq`
+        seqtk seq -r in.fq > out.fq
 
 * Extract sequences with names in file `name.lst`, one sequence name per line:
 
-    `seqtk subseq in.fq name.lst > out.fq`
+        seqtk subseq in.fq name.lst > out.fq
 
 * Extract sequences in regions contained in file `reg.bed`:
 
-    `seqtk subseq in.fa reg.bed > out.fa`
+        seqtk subseq in.fa reg.bed > out.fa
 
 * Subsample 10000 read pairs from two large paired FASTQ files (remember to use the same random seed to keep pairing):
 
@@ -38,4 +38,4 @@ Examples
 
 * Trim low-quality bases from both ends using the Phred algorithm:
 
-    `seqtk trimfq in.fq > out.fq`
+        seqtk trimfq in.fq > out.fq
