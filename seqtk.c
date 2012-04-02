@@ -908,7 +908,7 @@ int stk_seq(int argc, char *argv[])
 	gzFile fp;
 	kseq_t *seq;
 	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0;
-	unsigned line_len = 1024;
+	unsigned line_len = 0;
 	double frac = 1.;
 	khash_t(reg) *h = 0;
 
