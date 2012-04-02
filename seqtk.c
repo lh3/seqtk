@@ -98,6 +98,7 @@ reghash_t *stk_reg_read(const char *fn)
 void stk_reg_destroy(reghash_t *h)
 {
 	khint_t k;
+	if (h == 0) return;
 	for (k = 0; k < kh_end(h); ++k) {
 		if (kh_exist(h, k)) {
 			free(kh_val(h, k).a);
