@@ -939,7 +939,7 @@ int stk_seq(int argc, char *argv[])
 		fprintf(stderr, "         -M FILE   mask regions in BED or name list FILE [null]\n");
 		fprintf(stderr, "         -c        mask complement region (effective with -M)\n");
 		fprintf(stderr, "         -r        reverse complement\n");
-		fprintf(stderr, "         -a        force FASTA output (discard quality)\n");
+		fprintf(stderr, "         -A        force FASTA output (discard quality)\n");
 		fprintf(stderr, "         -C        drop comments at the header lines\n");
 		fprintf(stderr, "\n");
 		return 1;
