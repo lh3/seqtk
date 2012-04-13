@@ -913,8 +913,9 @@ int stk_seq(int argc, char *argv[])
 	khash_t(reg) *h = 0;
 
 	srand48(11);
-	while ((c = getopt(argc, argv, "q:l:Q:ACrn:s:f:M:c")) >= 0) {
+	while ((c = getopt(argc, argv, "q:l:Q:aACrn:s:f:M:c")) >= 0) {
 		switch (c) {
+			case 'a':
 			case 'A': flag |= 1; break;
 			case 'C': flag |= 2; break;
 			case 'r': flag |= 4; break;
