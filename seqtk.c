@@ -538,7 +538,7 @@ int stk_mergefa(int argc, char *argv[])
 				if (b[0] == 1 && b[1] == 1) {
 					if (c[0] == c[1]) ++cnt[0];
 					else ++cnt[1];
-				} else if (b[0] == 1 && b[2] == 2) {
+				} else if (b[0] == 1 && b[1] == 2) {
 					++cnt[2];
 				} else if (b[0] == 2 && b[1] == 1) {
 					++cnt[3];
