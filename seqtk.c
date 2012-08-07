@@ -486,6 +486,7 @@ int stk_mergefa(int argc, char *argv[])
 	gzFile fp[2];
 	kseq_t *seq[2];
 	int i, l, c, is_intersect = 0, is_haploid = 0, qual = 0, is_mask = 0;
+	uint64_t cnt[5];
 	while ((c = getopt(argc, argv, "himq:")) >= 0) {
 		switch (c) {
 			case 'i': is_intersect = 1; break;
@@ -510,6 +511,7 @@ int stk_mergefa(int argc, char *argv[])
 		fp[i] = strcmp(argv[optind+i], "-")? gzopen(argv[optind+i], "r") : gzdopen(fileno(stdin), "r");
 		seq[i] = kseq_init(fp[i]);
 	}
+	cnt[0] = cnt[1] = cnt[2] = cnt[3] = cnt[4] = 0;
 	while (kseq_read(seq[0]) >= 0) {
 		int min_l, c[2], is_upper;
 		kseq_read(seq[1]);
@@ -529,10 +531,25 @@ int stk_mergefa(int argc, char *argv[])
 			c[0] = seq_nt16_table[c[0]]; c[1] = seq_nt16_table[c[1]];
 			if (c[0] == 0) c[0] = 15;
 			if (c[1] == 0) c[1] = 15;
+			if (is_upper) {
+				int b[2];
+				b[0] = bitcnt_table[c[0]];
+				b[1] = bitcnt_table[c[1]];
+				if (b[0] == 1 && b[1] == 1) {
+					if (c[0] == c[1]) ++cnt[0];
+					else ++cnt[1];
+				} else if (b[0] == 1 && b[2] == 2) {
+					++cnt[2];
+				} else if (b[0] == 2 && b[1] == 1) {
+					++cnt[3];
+				} else if (b[0] == 2 && b[1] == 2) {
+					++cnt[4];
+				}
+			}
 			if (is_haploid && (bitcnt_table[c[0]] > 1 || bitcnt_table[c[1]] > 1)) is_upper = 0;
 			if (is_intersect) {
 				c[0] = c[0] & c[1];
-				if (c[0] == 0) is_upper = 0;
+				if (c[0] == 0) is_upper = 0; // FIXME: is this a bug - c[0] cannot be 0!
 			} else if (is_mask) {
 				if (c[0] == 15 || c[1] == 15) is_upper = 0;
 				c[0] = c[0] & c[1];
@@ -545,6 +562,7 @@ int stk_mergefa(int argc, char *argv[])
 		}
 		putchar('\n');
 	}
+	fprintf(stderr, "[%s] (same,diff,hom-het,het-hom,het-het)=(%ld,%ld,%ld,%ld,%ld)\n", __func__, (long)cnt[0], (long)cnt[1], (long)cnt[2], (long)cnt[3], (long)cnt[4]);
 	return 0;
 }
 
