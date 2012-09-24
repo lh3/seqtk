@@ -514,6 +514,7 @@ int stk_mergefa(int argc, char *argv[])
 		seq[i] = kseq_init(fp[i]);
 	}
 	cnt[0] = cnt[1] = cnt[2] = cnt[3] = cnt[4] = 0;
+	srand48(11);
 	while (kseq_read(seq[0]) >= 0) {
 		int min_l, c[2], b[2], is_upper;
 		kseq_read(seq[1]);
@@ -556,14 +557,15 @@ int stk_mergefa(int argc, char *argv[])
 					c[0] |= c[1];
 				} else if (((b[0] == 1 && b[1] == 2) || (b[0] == 2 && b[1] == 1)) && (c[0]&c[1])) { // one hom, one het
 					c[0] = (lrand48()&1)? (c[0] & c[1]) : (c[0] | c[1]);
-				} if (b[0] == 2 && b[1] == 2 && c[0] == c[1]) { // double hets
+				} else if (b[0] == 2 && b[1] == 2 && c[0] == c[1]) { // double hets
 					if (lrand48()&1) {
-						if (lrand48()&1)
+						if (lrand48()&1) {
 							for (i = 8; i >= 1; i >>= 1) // pick the "larger" allele
 								if (c[0]&i) c[0] &= i;
-						else
+						} else {
 							for (i = 1; i <= 8; i <<= 1) // pick the "smaller" allele
 								if (c[0]&i) c[0] &= i;
+						}
 					} // else set as het
 				} else is_upper = 0;
 			} else c[0] |= c[1];
