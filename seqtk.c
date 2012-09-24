@@ -552,10 +552,19 @@ int stk_mergefa(int argc, char *argv[])
 				c[0] &= c[1];
 				if (c[0] == 0) is_upper = 0;
 			} else if (is_randhet) {
-				if (b[0] == 1 && b[1] == 1) {
+				if (b[0] == 1 && b[1] == 1) { // two homs
 					c[0] |= c[1];
-				} else if (((b[0] == 1 && b[1] == 2) || (b[0] == 2 && b[1] == 1)) && (c[0]&c[1])) {
+				} else if (((b[0] == 1 && b[1] == 2) || (b[0] == 2 && b[1] == 1)) && (c[0]&c[1])) { // one hom, one het
 					c[0] = (lrand48()&1)? (c[0] & c[1]) : (c[0] | c[1]);
+				} if (b[0] == 2 && b[1] == 2 && c[0] == c[1]) { // double hets
+					if (lrand48()&1) {
+						if (lrand48()&1)
+							for (i = 8; i >= 1; i >>= 1) // pick the "larger" allele
+								if (c[0]&i) c[0] &= i;
+						else
+							for (i = 1; i <= 8; i <<= 1) // pick the "smaller" allele
+								if (c[0]&i) c[0] &= i;
+					} // else set as het
 				} else is_upper = 0;
 			} else c[0] |= c[1];
 			c[0] = seq_nt16_rev_table[c[0]];
