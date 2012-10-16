@@ -939,13 +939,13 @@ int stk_seq(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0;
+	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0;
 	unsigned line_len = 0;
 	double frac = 1.;
 	khash_t(reg) *h = 0;
 
 	srand48(11);
-	while ((c = getopt(argc, argv, "q:l:Q:aACrn:s:f:M:c")) >= 0) {
+	while ((c = getopt(argc, argv, "q:l:Q:aACrn:s:f:M:L:c")) >= 0) {
 		switch (c) {
 			case 'a':
 			case 'A': flag |= 1; break;
@@ -957,6 +957,7 @@ int stk_seq(int argc, char *argv[])
 			case 'Q': qual_shift = atoi(optarg); break;
 			case 'q': qual_thres = atoi(optarg); break;
 			case 'l': line_len = atoi(optarg); break;
+			case 'L': min_len = atoi(optarg); break;
 			case 's': srand48(atoi(optarg)); break;
 			case 'f': frac = atof(optarg); break;
 		}
@@ -971,6 +972,7 @@ int stk_seq(int argc, char *argv[])
 		fprintf(stderr, "         -s INT    random seed (effective with -f) [11]\n");
 		fprintf(stderr, "         -f FLOAT  sample FLOAT fraction of sequences [1]\n");
 		fprintf(stderr, "         -M FILE   mask regions in BED or name list FILE [null]\n");
+		fprintf(stderr, "         -L INT    drop sequences with length shorter than INT [0]\n");
 		fprintf(stderr, "         -c        mask complement region (effective with -M)\n");
 		fprintf(stderr, "         -r        reverse complement\n");
 		fprintf(stderr, "         -A        force FASTA output (discard quality)\n");
@@ -983,6 +985,7 @@ int stk_seq(int argc, char *argv[])
 	seq = kseq_init(fp);
 	qual_thres += qual_shift;
 	while (kseq_read(seq) >= 0) {
+		if (seq->seq.l < min_len) continue; // NB: length filter before taking random
 		if (frac < 1. && drand48() >= frac) continue;
 		if (seq->qual.l && qual_thres > qual_shift) {
 			unsigned i;
