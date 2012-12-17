@@ -217,7 +217,7 @@ int stk_trimfq(int argc, char *argv[])
 				if (s > max) max = s, beg = tmp, end = i + 1;
 				if (s < 0) s = 0, tmp = i + 1;
 			}
-			if (end - beg < min_len) { // window-based 
+			if (end - beg < min_len) { // window-based
 				int is, imax;
 				for (i = 0, is = 0; i < min_len; ++i)
 					is += seq->qual.s[i] - 33;
@@ -228,7 +228,8 @@ int stk_trimfq(int argc, char *argv[])
 				end = beg + min_len;
 			}
 		} else beg = 0, end = seq->seq.l;
-		putchar('@'); puts(seq->name.s);
+		putchar('@'); fwrite(seq->name.s, sizeof(seq->name.s[0]), sizeof(seq->name.s)/sizeof(seq->name.s[0]), stdout);
+		putchar(' '); puts(seq->comment.s);
 		fwrite(seq->seq.s + beg, 1, end - beg, stdout); putchar('\n');
 		if (seq->qual.l) {
 			puts("+");
@@ -485,14 +486,12 @@ int stk_mergefa(int argc, char *argv[])
 {
 	gzFile fp[2];
 	kseq_t *seq[2];
-	int i, l, c, is_intersect = 0, is_haploid = 0, qual = 0, is_mask = 0, is_randhet = 0;
-	uint64_t cnt[5];
-	while ((c = getopt(argc, argv, "himrq:")) >= 0) {
+	int i, l, c, is_intersect = 0, is_haploid = 0, qual = 0, is_mask = 0;
+	while ((c = getopt(argc, argv, "himq:")) >= 0) {
 		switch (c) {
 			case 'i': is_intersect = 1; break;
 			case 'h': is_haploid = 1; break;
 			case 'm': is_mask = 1; break;
-			case 'r': is_randhet = 1; break;
 			case 'q': qual = atoi(optarg); break;
 		}
 	}
@@ -504,8 +503,7 @@ int stk_mergefa(int argc, char *argv[])
 		fprintf(stderr, "\nUsage: seqtk mergefa [options] <in1.fa> <in2.fa>\n\n");
 		fprintf(stderr, "Options: -q INT   quality threshold [0]\n");
 		fprintf(stderr, "         -i       take intersection\n");
-		fprintf(stderr, "         -m       convert to lowercase when one of the input base is N\n");
-		fprintf(stderr, "         -r       pick a random allele from het\n");
+		fprintf(stderr, "         -m       convert to lowercase when one of the input base is N.\n");
 		fprintf(stderr, "         -h       suppress hets in the input\n\n");
 		return 1;
 	}
@@ -513,10 +511,8 @@ int stk_mergefa(int argc, char *argv[])
 		fp[i] = strcmp(argv[optind+i], "-")? gzopen(argv[optind+i], "r") : gzdopen(fileno(stdin), "r");
 		seq[i] = kseq_init(fp[i]);
 	}
-	cnt[0] = cnt[1] = cnt[2] = cnt[3] = cnt[4] = 0;
-	srand48(11);
 	while (kseq_read(seq[0]) >= 0) {
-		int min_l, c[2], b[2], is_upper;
+		int min_l, c[2], is_upper;
 		kseq_read(seq[1]);
 		if (strcmp(seq[0]->name.s, seq[1]->name.s))
 			fprintf(stderr, "[%s] Different sequence names: %s != %s\n", __func__, seq[0]->name.s, seq[1]->name.s);
@@ -534,41 +530,15 @@ int stk_mergefa(int argc, char *argv[])
 			c[0] = seq_nt16_table[c[0]]; c[1] = seq_nt16_table[c[1]];
 			if (c[0] == 0) c[0] = 15;
 			if (c[1] == 0) c[1] = 15;
-			b[0] = bitcnt_table[c[0]];
-			b[1] = bitcnt_table[c[1]];
-			if (is_upper) {
-				if (b[0] == 1 && b[1] == 1) {
-					if (c[0] == c[1]) ++cnt[0];
-					else ++cnt[1];
-				} else if (b[0] == 1 && b[1] == 2) ++cnt[2];
-				else if (b[0] == 2 && b[1] == 1) ++cnt[3];
-				else if (b[0] == 2 && b[1] == 2) ++cnt[4];
-			}
-			if (is_haploid && (b[0] > 1 || b[1] > 1)) is_upper = 0;
+			if (is_haploid && (bitcnt_table[c[0]] > 1 || bitcnt_table[c[1]] > 1)) is_upper = 0;
 			if (is_intersect) {
 				c[0] = c[0] & c[1];
-				if (c[0] == 0) is_upper = 0; // FIXME: is this a bug - c[0] cannot be 0!
+				if (c[0] == 0) is_upper = 0;
 			} else if (is_mask) {
 				if (c[0] == 15 || c[1] == 15) is_upper = 0;
-				c[0] &= c[1];
+				c[0] = c[0] & c[1];
 				if (c[0] == 0) is_upper = 0;
-			} else if (is_randhet) {
-				if (b[0] == 1 && b[1] == 1) { // two homs
-					c[0] |= c[1];
-				} else if (((b[0] == 1 && b[1] == 2) || (b[0] == 2 && b[1] == 1)) && (c[0]&c[1])) { // one hom, one het
-					c[0] = (lrand48()&1)? (c[0] & c[1]) : (c[0] | c[1]);
-				} else if (b[0] == 2 && b[1] == 2 && c[0] == c[1]) { // double hets
-					if (lrand48()&1) {
-						if (lrand48()&1) {
-							for (i = 8; i >= 1; i >>= 1) // pick the "larger" allele
-								if (c[0]&i) c[0] &= i;
-						} else {
-							for (i = 1; i <= 8; i <<= 1) // pick the "smaller" allele
-								if (c[0]&i) c[0] &= i;
-						}
-					} // else set as het
-				} else is_upper = 0;
-			} else c[0] |= c[1];
+			} else c[0] = c[0] | c[1];
 			c[0] = seq_nt16_rev_table[c[0]];
 			if (!is_upper) c[0] = tolower(c[0]);
 			if (l%60 == 0) putchar('\n');
@@ -576,7 +546,6 @@ int stk_mergefa(int argc, char *argv[])
 		}
 		putchar('\n');
 	}
-	fprintf(stderr, "[%s] (same,diff,hom-het,het-hom,het-het)=(%ld,%ld,%ld,%ld,%ld)\n", __func__, (long)cnt[0], (long)cnt[1], (long)cnt[2], (long)cnt[3], (long)cnt[4]);
 	return 0;
 }
 
@@ -939,13 +908,13 @@ int stk_seq(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0;
+	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0;
 	unsigned line_len = 0;
 	double frac = 1.;
 	khash_t(reg) *h = 0;
 
 	srand48(11);
-	while ((c = getopt(argc, argv, "q:l:Q:aACrn:s:f:M:L:c")) >= 0) {
+	while ((c = getopt(argc, argv, "q:l:Q:aACrn:s:f:M:c")) >= 0) {
 		switch (c) {
 			case 'a':
 			case 'A': flag |= 1; break;
@@ -957,7 +926,6 @@ int stk_seq(int argc, char *argv[])
 			case 'Q': qual_shift = atoi(optarg); break;
 			case 'q': qual_thres = atoi(optarg); break;
 			case 'l': line_len = atoi(optarg); break;
-			case 'L': min_len = atoi(optarg); break;
 			case 's': srand48(atoi(optarg)); break;
 			case 'f': frac = atof(optarg); break;
 		}
@@ -972,7 +940,6 @@ int stk_seq(int argc, char *argv[])
 		fprintf(stderr, "         -s INT    random seed (effective with -f) [11]\n");
 		fprintf(stderr, "         -f FLOAT  sample FLOAT fraction of sequences [1]\n");
 		fprintf(stderr, "         -M FILE   mask regions in BED or name list FILE [null]\n");
-		fprintf(stderr, "         -L INT    drop sequences with length shorter than INT [0]\n");
 		fprintf(stderr, "         -c        mask complement region (effective with -M)\n");
 		fprintf(stderr, "         -r        reverse complement\n");
 		fprintf(stderr, "         -A        force FASTA output (discard quality)\n");
@@ -985,7 +952,6 @@ int stk_seq(int argc, char *argv[])
 	seq = kseq_init(fp);
 	qual_thres += qual_shift;
 	while (kseq_read(seq) >= 0) {
-		if (seq->seq.l < min_len) continue; // NB: length filter before taking random
 		if (frac < 1. && drand48() >= frac) continue;
 		if (seq->qual.l && qual_thres > qual_shift) {
 			unsigned i;
