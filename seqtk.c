@@ -228,7 +228,10 @@ int stk_trimfq(int argc, char *argv[])
 				end = beg + min_len;
 			}
 		} else beg = 0, end = seq->seq.l;
-		putchar('@'); puts(seq->name.s);
+		putchar('@'); fputs(seq->name.s, stdout); 
+		if (seq->comment.l) {
+			putchar(' '); puts(seq->comment.s);
+		}
 		fwrite(seq->seq.s + beg, 1, end - beg, stdout); putchar('\n');
 		if (seq->qual.l) {
 			puts("+");
