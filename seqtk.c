@@ -176,7 +176,7 @@ void stk_printseq(const kseq_t *s, int line_len)
 
 /* quality based trimming with Mott's algorithm */
 int stk_trimfq(int argc, char *argv[])
-{
+{ // FIXME: when a record with zero length will always be treated as a fasta record
 	gzFile fp;
 	kseq_t *seq;
 	double param = 0.05, q_int2real[128];
@@ -208,6 +208,7 @@ int stk_trimfq(int argc, char *argv[])
 		double s, max;
 		if (left || right) {
 			beg = left; end = seq->seq.l - right;
+			if (beg >= end) beg = end = 0;
 		} else if (seq->qual.l > min_len) {
 			for (i = 0, beg = tmp = 0, end = seq->qual.l, s = max = 0.; i < seq->qual.l; ++i) {
 				int q = seq->qual.s[i];
@@ -228,10 +229,10 @@ int stk_trimfq(int argc, char *argv[])
 				end = beg + min_len;
 			}
 		} else beg = 0, end = seq->seq.l;
-		putchar('@'); fputs(seq->name.s, stdout); 
+		putchar(seq->qual.l? '@' : '>'); fputs(seq->name.s, stdout); 
 		if (seq->comment.l) {
 			putchar(' '); puts(seq->comment.s);
-		}
+		} else putchar('\n');
 		fwrite(seq->seq.s + beg, 1, end - beg, stdout); putchar('\n');
 		if (seq->qual.l) {
 			puts("+");
@@ -1033,12 +1034,13 @@ int stk_seq(int argc, char *argv[])
 static int usage()
 {
 	fprintf(stderr, "\n");
-	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n\n");
+	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
+	fprintf(stderr, "Version: 0.1.0-r30\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
 	fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
-	fprintf(stderr, "         trimfq    trim FASTQ using the Phred algorithm\n");
+	fprintf(stderr, "         trimfq    trim FASTQ using the Phred algorithm\n\n");
 	fprintf(stderr, "         hety      regional heterozygosity\n");
 	fprintf(stderr, "         mutfa     point mutate FASTA at specified positions\n");
 	fprintf(stderr, "         mergefa   merge two FASTA/Q files\n");
