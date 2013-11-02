@@ -945,17 +945,20 @@ int stk_seq(int argc, char *argv[])
 	kseq_t *seq;
 	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0;
 	unsigned line_len = 0;
+	int64_t n_seqs = 0;
 	double frac = 1.;
 	khash_t(reg) *h = 0;
 
 	srand48(11);
-	while ((c = getopt(argc, argv, "q:l:Q:aACrn:s:f:M:L:c")) >= 0) {
+	while ((c = getopt(argc, argv, "12q:l:Q:aACrn:s:f:M:L:c")) >= 0) {
 		switch (c) {
 			case 'a':
 			case 'A': flag |= 1; break;
 			case 'C': flag |= 2; break;
 			case 'r': flag |= 4; break;
 			case 'c': flag |= 8; break;
+			case '1': flag |= 16; break;
+			case '2': flag |= 32; break;
 			case 'M': h = stk_reg_read(optarg); break;
 			case 'n': mask_chr = *optarg; break;
 			case 'Q': qual_shift = atoi(optarg); break;
@@ -989,8 +992,13 @@ int stk_seq(int argc, char *argv[])
 	seq = kseq_init(fp);
 	qual_thres += qual_shift;
 	while (kseq_read(seq) >= 0) {
+		++n_seqs;
 		if (seq->seq.l < min_len) continue; // NB: length filter before taking random
 		if (frac < 1. && drand48() >= frac) continue;
+		if (flag & 48) { // then choose odd/even reads only
+			if ((flag&16) && (n_seqs&1) == 0) continue;
+			if ((flag&32) && (n_seqs&1) == 1) continue;
+		}
 		if (seq->qual.l && qual_thres > qual_shift) {
 			unsigned i;
 			if (mask_chr) {
