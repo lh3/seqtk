@@ -944,13 +944,13 @@ int stk_seq(int argc, char *argv[])
 	gzFile fp;
 	kseq_t *seq;
 	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0;
-	unsigned line_len = 0;
+	unsigned i, line_len = 0;
 	int64_t n_seqs = 0;
 	double frac = 1.;
 	khash_t(reg) *h = 0;
 
 	srand48(11);
-	while ((c = getopt(argc, argv, "12q:l:Q:aACrn:s:f:M:L:c")) >= 0) {
+	while ((c = getopt(argc, argv, "12q:l:Q:aACrn:s:f:M:L:cV")) >= 0) {
 		switch (c) {
 			case 'a':
 			case 'A': flag |= 1; break;
@@ -959,6 +959,7 @@ int stk_seq(int argc, char *argv[])
 			case 'c': flag |= 8; break;
 			case '1': flag |= 16; break;
 			case '2': flag |= 32; break;
+			case 'V': flag |= 64; break;
 			case 'M': h = stk_reg_read(optarg); break;
 			case 'n': mask_chr = *optarg; break;
 			case 'Q': qual_shift = atoi(optarg); break;
@@ -984,6 +985,9 @@ int stk_seq(int argc, char *argv[])
 		fprintf(stderr, "         -r        reverse complement\n");
 		fprintf(stderr, "         -A        force FASTA output (discard quality)\n");
 		fprintf(stderr, "         -C        drop comments at the header lines\n");
+		fprintf(stderr, "         -1        output the 2n-1 reads only\n");
+		fprintf(stderr, "         -2        output the 2n reads only\n");
+		fprintf(stderr, "         -V        shift quality by '(-Q) - 33'\n");
 		fprintf(stderr, "\n");
 		return 1;
 	}
@@ -1000,7 +1004,6 @@ int stk_seq(int argc, char *argv[])
 			if ((flag&32) && (n_seqs&1) == 1) continue;
 		}
 		if (seq->qual.l && qual_thres > qual_shift) {
-			unsigned i;
 			if (mask_chr) {
 				for (i = 0; i < seq->seq.l; ++i)
 					if (seq->qual.s[i] < qual_thres)
@@ -1016,7 +1019,6 @@ int stk_seq(int argc, char *argv[])
 		if (h) stk_mask(seq, h, flag&8, mask_chr); // masking
 		if (flag & 4) { // reverse complement
 			int c0, c1;
-			unsigned i;
 			for (i = 0; i < seq->seq.l>>1; ++i) { // reverse complement sequence
 				c0 = comp_tab[(int)seq->seq.s[i]];
 				c1 = comp_tab[(int)seq->seq.s[seq->seq.l - 1 - i]];
@@ -1030,6 +1032,9 @@ int stk_seq(int argc, char *argv[])
 					c0 = seq->qual.s[i], seq->qual.s[i] = seq->qual.s[seq->qual.l - 1 - i], seq->qual.s[seq->qual.l - 1 - i] = c0;
 			}
 		}
+		if ((flag & 64) && seq->qual.l && qual_shift != 33)
+			for (i = 0; i < seq->qual.l; ++i)
+				seq->qual.s[i] -= qual_shift - 33;
 		stk_printseq(seq, line_len);
 	}
 	kseq_destroy(seq);
@@ -1043,7 +1048,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r31\n\n");
+	fprintf(stderr, "Version: 1.0-r32\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
