@@ -218,6 +218,10 @@ int stk_trimfq(int argc, char *argv[])
 				if (s > max) max = s, beg = tmp, end = i + 1;
 				if (s < 0) s = 0, tmp = i + 1;
 			}
+
+			/* max never set; all low qual, just give first min_len bp */
+			if (max == 0.) beg = 0, end = min_len;
+
 			if (end - beg < min_len) { // window-based 
 				int is, imax;
 				for (i = 0, is = 0; i < min_len; ++i)
