@@ -86,11 +86,18 @@ int main_cut(int argc, char *argv[])
 	while (ks_getuntil2(ks, KS_SEP_LINE, &str, &dret, 0) >= 0) {
 		int b, i;
 		buf.n = 0; out.l = 0;
-		for (i = b = 0; i <= str.l; ++i) { // mark columns
-			if (str.s[i] == sep || i == str.l || (sep == 256 && isspace(str.s[i]))) {
-				kv_push(uint64_t, buf, (uint64_t)b<<32 | i);
-				b = i + 1;
-			}
+		if (sep == 256) {
+			for (i = b = 0; i <= str.l; ++i) // mark columns
+				if (isspace(str.s[i]) || i == str.l) {
+					kv_push(uint64_t, buf, (uint64_t)b<<32 | i);
+					b = i + 1;
+				}
+		} else {
+			for (i = b = 0; i <= str.l; ++i) // mark columns
+				if (str.s[i] == sep || i == str.l) {
+					kv_push(uint64_t, buf, (uint64_t)b<<32 | i);
+					b = i + 1;
+				}
 		}
 		for (i = 0; i < cols.n; ++i) { // print columns
 			int32_t j, beg = cols.a[i]>>32, end = (int32_t)cols.a[i];
