@@ -27,10 +27,11 @@ int main_cut(int argc, char *argv[])
 	gzFile fp;
 	kstream_t *ks;
 	kstring_t str = {0,0,0}, out = {0,0,0};
-	int dret, sep = '\t', c, reorder = 0;
+	int dret, sep = '\t', c, reorder = 0, skip_char = -1;
 
-	while ((c = getopt(argc, argv, "rd:f:")) >= 0) {
+	while ((c = getopt(argc, argv, "rd:f:S:")) >= 0) {
 		if (c == 'r') reorder = 1;
+		else if (c == 'S') skip_char = optarg[0];
 		else if (c == 'd') {
 			if (strcmp(optarg, "isspace") == 0) sep = 256;
 			else if (strlen(optarg) == 1) sep = optarg[0];
@@ -59,6 +60,7 @@ int main_cut(int argc, char *argv[])
 	if (argc == optind && isatty(fileno(stdin))) {
 		fprintf(stderr, "\nUsage: tabtk cut [options] [file.txt]\n\n");
 		fprintf(stderr, "Options: -d CHAR     delimitor, a single CHAR or 'isspace' for both SPACE and TAB [TAB]\n");
+		fprintf(stderr, "         -S CHAR     keep full lines starting with CHAR [null]\n");
 		fprintf(stderr, "         -f STR      fields to cut; format identical to Unix cut [null]\n");
 		fprintf(stderr, "         -r          reorder fields\n\n");
 		return 1;
@@ -90,6 +92,10 @@ int main_cut(int argc, char *argv[])
 	ks = ks_init(fp);
 	while (ks_getuntil2(ks, KS_SEP_LINE, &str, &dret, 0) >= 0) {
 		int b, i;
+		if (skip_char >= 0 && str.s[0] == skip_char) {
+			puts(str.s);
+			continue;
+		}
 		buf.n = 0; out.l = 0;
 		if (sep == 256) {
 			for (i = b = 0; i <= str.l; ++i) // mark columns
@@ -123,7 +129,7 @@ int main_cut(int argc, char *argv[])
 
 int main_num(int argc, char *argv[])
 {
-	int c, col = 0, in_ram = 0, dret, show_more = 0;
+	int c, col = 0, in_ram = 0, dret, show_more = 0, skip_char = -1;
 	uint64_t n = 0;
 	double qt = -1, min = DBL_MAX, max = DBL_MIN, avg;
 	long double sum = 0.;
@@ -132,15 +138,17 @@ int main_num(int argc, char *argv[])
 	kstream_t *ks;
 	kstring_t str = {0,0,0};
 
-	while ((c = getopt(argc, argv, "Qc:q:")) >= 0) {
+	while ((c = getopt(argc, argv, "Qc:q:S:")) >= 0) {
 		if (c == 'c') col = atol(optarg) - 1;
 		else if (c == 'Q') show_more = in_ram = 1;
 		else if (c == 'q') qt = atof(optarg), in_ram = 1;
+		else if (c == 'S') skip_char = optarg[0];
 	}
 	if (argc == optind && isatty(fileno(stdin))) {
 		fprintf(stderr, "\nUsage:   tabtk num [options] [file.txt]\n\n");
 		fprintf(stderr, "Options: -c INT     column number [1]\n");
 		fprintf(stderr, "         -q FLOAT   only compute quantile, negative to disable [-1]\n");
+		fprintf(stderr, "         -S CHAR    skip lines starting with CHAR [null]\n");
 		fprintf(stderr, "         -Q         output quartiles, stdandard deviation and skewness\n");
 		fprintf(stderr, "\n");
 		fprintf(stderr, "Notes: number, mean, min, max[, std.dev, skewness, 25%%-percentile, median, 75%%]\n\n");
@@ -152,6 +160,7 @@ int main_num(int argc, char *argv[])
 		int i, beg;
 		double x;
 		char *p;
+		if (skip_char >= 0 && str.s[0] == skip_char) continue;
 		for (i = beg = c = 0; i <= str.l; ++i) // mark columns
 			if (isspace(str.s[i]) || i == str.l) {
 				if (c++ == col) break;
@@ -159,6 +168,7 @@ int main_num(int argc, char *argv[])
 			}
 		if (i > str.l) continue; // not enough fields
 		x = strtod(&str.s[beg], &p);
+		if (p == &str.s[beg]) continue; // conversion failed
 		++n; sum += x;
 		min = min < x? min : x;
 		max = max > x? max : x;
