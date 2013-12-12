@@ -26,8 +26,14 @@ int main_cut(int argc, char *argv[])
 
 	while ((c = getopt(argc, argv, "rd:f:")) >= 0) {
 		if (c == 'r') reorder = 1;
-		else if (c == 'd') sep = optarg[0];
-		else if (c == 'f') {
+		else if (c == 'd') {
+			if (strcmp(optarg, "isspace") == 0) sep = 256;
+			else if (strlen(optarg) == 1) sep = optarg[0];
+			else {
+				fprintf(stderr, "[E::%s] invalid delimitor\n", __func__);
+				return 1;
+			}
+		} else if (c == 'f') {
 			int32_t beg, end, x;
 			char *p = optarg;
 			while ((x = strtol(p, &p, 10)) > 0) {
@@ -46,7 +52,10 @@ int main_cut(int argc, char *argv[])
 	}
 	
 	if (argc == optind && isatty(fileno(stdin))) {
-		fprintf(stderr, "Usage: tabtk cut [-r] [-d sep] [-f fields] [file.txt]\n");
+		fprintf(stderr, "\nUsage: tabtk cut [options] [file.txt]\n\n");
+		fprintf(stderr, "Options: -d CHAR     delimitor, a single CHAR or 'isspace' for both SPACE and TAB [TAB]\n");
+		fprintf(stderr, "         -f STR      fields to cut; format identical to Unix cut [null]\n");
+		fprintf(stderr, "         -r          reorder fields\n\n");
 		return 1;
 	}
 
@@ -71,7 +80,7 @@ int main_cut(int argc, char *argv[])
 		int b, i;
 		buf.n = 0; out.l = 0;
 		for (i = b = 0; i <= str.l; ++i) {
-			if (str.s[i] == sep || i == str.l) {
+			if (str.s[i] == sep || i == str.l || (sep == 256 && isspace(str.s[i]))) {
 				kv_push(uint64_t, buf, (uint64_t)b<<32 | i);
 				b = i + 1;
 			}
@@ -84,7 +93,7 @@ int main_cut(int argc, char *argv[])
 				kputsn(&str.s[x>>32], (uint32_t)x - (x>>32), &out);
 			}
 		}
-		puts(out.s);
+		puts(out.s? out.s : "");
 	}
 	ks_destroy(ks);
 	gzclose(fp);
