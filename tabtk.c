@@ -134,13 +134,16 @@ int main_num(int argc, char *argv[])
 
 	while ((c = getopt(argc, argv, "Qc:q:")) >= 0) {
 		if (c == 'c') col = atol(optarg) - 1;
-		else if (c == 'Q') show_more = 1;
+		else if (c == 'Q') show_more = in_ram = 1;
 		else if (c == 'q') qt = atof(optarg), in_ram = 1;
 	}
 	if (argc == optind && isatty(fileno(stdin))) {
 		fprintf(stderr, "\nUsage:   tabtk num [options] [file.txt]\n\n");
 		fprintf(stderr, "Options: -c INT     column number [1]\n");
+		fprintf(stderr, "         -q FLOAT   only compute quantile, negative to disable [-1]\n");
+		fprintf(stderr, "         -Q         output quartiles, stdandard deviation and skewness\n");
 		fprintf(stderr, "\n");
+		fprintf(stderr, "Notes: number, mean, min, max[, std.dev, skewness, 25%%-percentile, median, 75%%]\n\n");
 		return 1;
 	}
 	fp = (optind == argc && !isatty(fileno(stdin))) || strcmp(argv[optind], "-") == 0? gzdopen(fileno(stdin), "r") : gzopen(argv[optind], "r");
@@ -161,8 +164,41 @@ int main_num(int argc, char *argv[])
 		max = max > x? max : x;
 		if (in_ram) kv_push(double, a, x);
 	}
+	if (n == 0) {
+		fprintf(stderr, "[E::%s] no data are read\n", __func__);
+		return 1;
+	}
 	avg = sum / n;
-	printf("%llu\t%g\t%g\t%g", (unsigned long long)n, avg, min, max);
+	if (qt < 0. || qt > 1.) {
+		printf("%llu\t%g\t%g\t%g", (unsigned long long)n, avg, min, max);
+		if (show_more) {
+			long double sum2 = 0., sum3 = 0.;
+			double q[3];
+			uint64_t i;
+			if (n > 1) {
+				double g1, tmp;
+				for (i = 0; i < n; ++i) {
+					double t = (a.a[i] - avg) * (a.a[i] - avg);
+					sum2 += t;
+					sum3 += t * (a.a[i] - avg);
+				}
+				tmp = sqrt(sum2 / n);
+				printf("\t%g", sqrt(sum2 / (n - 1)));
+				g1 = (sum3 / n) / (tmp * tmp * tmp);
+				if (n > 2) printf("\t%g", sqrt((double)n * (n - 1)) / (n - 2) * g1);
+				else printf("\tNaN");
+			} else printf("\tNaN");
+			q[0] = ks_ksmall(double, a.n, a.a, (int)(ceil(n * .25) + .499));
+			q[1] = ks_ksmall(double, a.n, a.a, (int)(ceil(n * .50) + .499));
+			q[2] = ks_ksmall(double, a.n, a.a, (int)(ceil(n * .75) + .499));
+			printf("\t%g\t%g\t%g", q[0], q[1], q[2]);
+		}
+	} else {
+		double q;
+		q = ks_ksmall(double, a.n, a.a, (int)(ceil(n * qt) + .499));
+		printf("%g", q);
+	}
+	putchar('\n');
 	ks_destroy(ks);
 	gzclose(fp);
 	free(a.a); free(str.s);
@@ -175,6 +211,7 @@ static int usage()
 	fprintf(stderr, "Usage:   tabtk <command> [arguments]\n");
 	fprintf(stderr, "Version: 0.0\n\n");
 	fprintf(stderr, "Command: cut       Unix cut with optional column reordering\n");
+	fprintf(stderr, "         num       summary statistics on a single numerical column\n");
 	fprintf(stderr, "\n");
 	return 1;
 }
