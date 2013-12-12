@@ -5,7 +5,8 @@ Seqtk is a fast and lightweight tool for processing sequences in the FASTA or
 FASTQ format. It seamlessly parses both FASTA and FASTQ files which can also be
 optionally compressed by gzip.
 
-Tabtk is a tool for processing TAB/SPACE-delimited data.
+Tabtk is a tool for processing TAB/SPACE-delimited data (examples at the end of
+this page).
 
 Seqtk Examples
 --------------
@@ -67,7 +68,7 @@ Tabtk Examples
 
         tabtk cut -rf 5,1-3,6 file.txt
 
-* Duplicare columns (duplicated columns not ignored with option `-r`):
+* Duplicate columns (duplicated columns not ignored with option `-r`):
 
         tabtk cut -rf 1,1,1 file.txt
 

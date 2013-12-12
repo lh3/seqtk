@@ -36,7 +36,7 @@ int main_cut(int argc, char *argv[])
 		} else if (c == 'f') {
 			int32_t beg, end, x;
 			char *p = optarg;
-			while ((x = strtol(p, &p, 10)) > 0) {
+			while ((x = strtol(p, &p, 10)) > 0) { // parse the field string
 				beg = end = x;
 				if (*p == '-')
 					end = (x = strtol(p + 1, &p, 10)) >= beg? x : INT32_MAX;
@@ -64,16 +64,16 @@ int main_cut(int argc, char *argv[])
 		return 2;
 	}
 
-	if (!reorder) { // insertion sort
+	if (!reorder) {
 		uint64_t *i;
 		int j, k;
-		for (i = cols.a + 1; i < cols.a + cols.n; ++i)
+		for (i = cols.a + 1; i < cols.a + cols.n; ++i) // insertion sort
 			if (*i < *(i - 1)) {
 				uint64_t *j, tmp = *i;
 				for (j = i; j > cols.a && tmp < *(j-1); --j) *j = *(j - 1);
 				*j = tmp;
 			}
-		for (j = k = 1; j < cols.n; ++j) {
+		for (j = k = 1; j < cols.n; ++j) { // merge overlapping col regions
 			if (cols.a[j]>>32 <= (uint32_t)cols.a[k-1])
 				cols.a[k-1] = cols.a[k-1]>>32<<32 | (uint32_t)cols.a[j];
 			else cols.a[k++] = cols.a[j];
@@ -86,13 +86,13 @@ int main_cut(int argc, char *argv[])
 	while (ks_getuntil2(ks, KS_SEP_LINE, &str, &dret, 0) >= 0) {
 		int b, i;
 		buf.n = 0; out.l = 0;
-		for (i = b = 0; i <= str.l; ++i) {
+		for (i = b = 0; i <= str.l; ++i) { // mark columns
 			if (str.s[i] == sep || i == str.l || (sep == 256 && isspace(str.s[i]))) {
 				kv_push(uint64_t, buf, (uint64_t)b<<32 | i);
 				b = i + 1;
 			}
 		}
-		for (i = 0; i < cols.n; ++i) {
+		for (i = 0; i < cols.n; ++i) { // print columns
 			int32_t j, beg = cols.a[i]>>32, end = (int32_t)cols.a[i];
 			for (j = beg; j < end && j < buf.n; ++j) {
 				uint64_t x = buf.a[j];
