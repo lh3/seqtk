@@ -66,12 +66,19 @@ int main_cut(int argc, char *argv[])
 
 	if (!reorder) { // insertion sort
 		uint64_t *i;
+		int j, k;
 		for (i = cols.a + 1; i < cols.a + cols.n; ++i)
 			if (*i < *(i - 1)) {
 				uint64_t *j, tmp = *i;
 				for (j = i; j > cols.a && tmp < *(j-1); --j) *j = *(j - 1);
 				*j = tmp;
 			}
+		for (j = k = 1; j < cols.n; ++j) {
+			if (cols.a[j]>>32 <= (uint32_t)cols.a[k-1])
+				cols.a[k-1] = cols.a[k-1]>>32<<32 | (uint32_t)cols.a[j];
+			else cols.a[k++] = cols.a[j];
+		}
+		cols.n = k;
 	}
 
 	fp = (optind == argc && !isatty(fileno(stdin))) || strcmp(argv[optind], "-") == 0? gzdopen(fileno(stdin), "r") : gzopen(argv[optind], "r");
