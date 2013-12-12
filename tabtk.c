@@ -6,15 +6,20 @@
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
+#include <float.h>
 #include <math.h>
 #include "kvec.h"
 #include "kstring.h"
+
+#include "ksort.h"
+KSORT_INIT_GENERIC(double)
 
 #include "kseq.h"
 KSTREAM_INIT(gzFile, gzread, 65536)
 
 typedef kvec_t(uint32_t) vec32_t;
 typedef kvec_t(uint64_t) vec64_t;
+typedef kvec_t(double) vecdbl_t;
 
 int main_cut(int argc, char *argv[])
 {
@@ -116,6 +121,54 @@ int main_cut(int argc, char *argv[])
 	return 0;
 }
 
+int main_num(int argc, char *argv[])
+{
+	int c, col = 0, in_ram = 0, dret, show_more = 0;
+	uint64_t n = 0;
+	double qt = -1, min = DBL_MAX, max = DBL_MIN, avg;
+	long double sum = 0.;
+	vecdbl_t a = {0,0,0};
+	gzFile fp;
+	kstream_t *ks;
+	kstring_t str = {0,0,0};
+
+	while ((c = getopt(argc, argv, "Qc:q:")) >= 0) {
+		if (c == 'c') col = atol(optarg) - 1;
+		else if (c == 'Q') show_more = 1;
+		else if (c == 'q') qt = atof(optarg), in_ram = 1;
+	}
+	if (argc == optind && isatty(fileno(stdin))) {
+		fprintf(stderr, "\nUsage:   tabtk num [options] [file.txt]\n\n");
+		fprintf(stderr, "Options: -c INT     column number [1]\n");
+		fprintf(stderr, "\n");
+		return 1;
+	}
+	fp = (optind == argc && !isatty(fileno(stdin))) || strcmp(argv[optind], "-") == 0? gzdopen(fileno(stdin), "r") : gzopen(argv[optind], "r");
+	ks = ks_init(fp);
+	while (ks_getuntil2(ks, KS_SEP_LINE, &str, &dret, 0) >= 0) {
+		int i, beg;
+		double x;
+		char *p;
+		for (i = beg = c = 0; i <= str.l; ++i) // mark columns
+			if (isspace(str.s[i]) || i == str.l) {
+				if (c++ == col) break;
+				beg = i + 1;
+			}
+		if (i > str.l) continue; // not enough fields
+		x = strtod(&str.s[beg], &p);
+		++n; sum += x;
+		min = min < x? min : x;
+		max = max > x? max : x;
+		if (in_ram) kv_push(double, a, x);
+	}
+	avg = sum / n;
+	printf("%llu\t%g\t%g\t%g", (unsigned long long)n, avg, min, max);
+	ks_destroy(ks);
+	gzclose(fp);
+	free(a.a); free(str.s);
+	return 0;
+}
+
 static int usage()
 {
 	fprintf(stderr, "\n");
@@ -130,6 +183,7 @@ int main(int argc, char *argv[])
 {
 	if (argc == 1) return usage();
 	if (strcmp(argv[1], "cut") == 0) main_cut(argc-1, argv+1);
+	else if (strcmp(argv[1], "num") == 0) main_num(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[main] unrecognized commad '%s'. Abort!\n", argv[1]);
 		return 1;
