@@ -852,6 +852,7 @@ static void cpy_kseq(kseq_t *dst, const kseq_t *src)
 	cpy_kstr(&dst->name, &src->name);
 	cpy_kstr(&dst->seq,  &src->seq);
 	cpy_kstr(&dst->qual, &src->qual);
+	cpy_kstr(&dst->comment, &src->comment);
 }
 
 int stk_sample(int argc, char *argv[])
