@@ -174,6 +174,46 @@ void stk_printseq(const kseq_t *s, int line_len)
 	}
 }
 
+/* convert paired-end files to interleaved */
+int stk_interleave(int argc, char *argv[])
+{
+	gzFile fp1, fp2;
+	kseq_t *seq1, *seq2;
+
+    if (argc != 3){
+        fprintf(stderr, "%d\n", argc);
+		fprintf(stderr, "\n");
+		fprintf(stderr, "Usage:   seqtk interleavefqs <r1.fq r2.fq>\n\n");
+		fprintf(stderr, "\n");
+        return 1;
+    }
+
+    fp1 = strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
+	seq1 = kseq_init(fp1);
+
+    fp2 = strcmp(argv[2], "-")? gzopen(argv[2], "r") : gzdopen(fileno(stdin), "r");
+	seq2 = kseq_init(fp2);
+
+    while (kseq_read(seq1) >= 0){
+        if (kseq_read(seq2) < 0){
+            fprintf(stderr, "seqtk error: %s has fewer records than %s", argv[2], argv[1]);
+            return 1;
+        }
+        stk_printseq(seq1, UINT_MAX);
+        stk_printseq(seq2, UINT_MAX);
+    }
+    if (kseq_read(seq2) > 0){
+        fprintf(stderr, "seqtk error: %s has fewer records than %s\n", argv[1], argv[2]);
+        return 1;
+    }
+	kseq_destroy(seq1);
+	kseq_destroy(seq2);
+	gzclose(fp1);
+	gzclose(fp2);
+    return 0;
+}
+
+
 /* quality based trimming with Mott's algorithm */
 int stk_trimfq(int argc, char *argv[])
 { // FIXME: when a record with zero length will always be treated as a fasta record
@@ -1054,17 +1094,18 @@ static int usage()
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
 	fprintf(stderr, "Version: 1.0-r32\n\n");
-	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
-	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
-	fprintf(stderr, "         sample    subsample sequences\n");
-	fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
-	fprintf(stderr, "         trimfq    trim FASTQ using the Phred algorithm\n\n");
-	fprintf(stderr, "         hety      regional heterozygosity\n");
-	fprintf(stderr, "         mutfa     point mutate FASTA at specified positions\n");
-	fprintf(stderr, "         mergefa   merge two FASTA/Q files\n");
-	fprintf(stderr, "         randbase  choose a random base from hets\n");
-	fprintf(stderr, "         cutN      cut sequence at long N\n");
-	fprintf(stderr, "         listhet   extract the position of each het\n");
+	fprintf(stderr, "Command: seq        common transformation of FASTA/Q\n");
+	fprintf(stderr, "         comp       get the nucleotide composition of FASTA/Q\n");
+	fprintf(stderr, "         sample     subsample sequences\n");
+	fprintf(stderr, "         interleave interleave paired-end fastq sequences\n");
+	fprintf(stderr, "         subseq     extract subsequences from FASTA/Q\n");
+	fprintf(stderr, "         trimfq     trim FASTQ using the Phred algorithm\n\n");
+	fprintf(stderr, "         hety       regional heterozygosity\n");
+	fprintf(stderr, "         mutfa      point mutate FASTA at specified positions\n");
+	fprintf(stderr, "         mergefa    merge two FASTA/Q files\n");
+	fprintf(stderr, "         randbase   choose a random base from hets\n");
+	fprintf(stderr, "         cutN       cut sequence at long N\n");
+	fprintf(stderr, "         listhet    extract the position of each het\n");
 	fprintf(stderr, "\n");
 	return 1;
 }
@@ -1075,6 +1116,7 @@ int main(int argc, char *argv[])
 	if (strcmp(argv[1], "comp") == 0) stk_comp(argc-1, argv+1);
 	else if (strcmp(argv[1], "hety") == 0) stk_hety(argc-1, argv+1);
 	else if (strcmp(argv[1], "subseq") == 0) stk_subseq(argc-1, argv+1);
+	else if (strcmp(argv[1], "interleave") == 0) stk_interleave(argc-1, argv+1);
 	else if (strcmp(argv[1], "mutfa") == 0) stk_mutfa(argc-1, argv+1);
 	else if (strcmp(argv[1], "mergefa") == 0) stk_mergefa(argc-1, argv+1);
 	else if (strcmp(argv[1], "randbase") == 0) stk_randbase(argc-1, argv+1);
