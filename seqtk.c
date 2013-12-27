@@ -227,7 +227,7 @@ int stk_pairfq(int argc, char *argv[]){
     }
     fprintf(stderr, "seqtk: dropped %d singletons\n", skipped);
 	kseq_destroy(seq1);
-    free(seq2->seq.s); free(seq2->qual.s); free(seq2->name.s);
+    free(seq2->seq.s); free(seq2->qual.s); free(seq2->name.s); free(seq2);
 	gzclose(fp);
     return 0;
 }
