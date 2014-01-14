@@ -1032,7 +1032,7 @@ int stk_seq(int argc, char *argv[])
 		}
 		if (flag & 128) { // appending sequence/qual
 			/* Do the appending */
-			int mov_dist = 0, old_len = 0, new_len = 0;
+			int old_len = 0, new_len = 0;
 			if (append_seq != NULL) {
 				old_len = seq->seq.l;
 				new_len = old_len + append_l;
@@ -1048,7 +1048,7 @@ int stk_seq(int argc, char *argv[])
 		}
 		if (flag & 256 && prepend_l > 0) { // prepending sequence/qual
 			/* Do the prepending */
-			int mov_dist = 0, old_len = 0, new_len = 0;
+			int old_len = 0, new_len = 0;
 			if (prepend_seq != NULL) {
 				old_len = seq->seq.l;
 				new_len = old_len + prepend_l;
