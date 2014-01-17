@@ -1042,6 +1042,7 @@ int stk_seq(int argc, char *argv[])
 					seq->seq.m = new_m;
 				}
 				memcpy(seq->seq.s + old_len, append_seq, append_l);
+				seq->seq.l = new_len;
 				seq->seq.s[new_len] = '\0';
 			}
 			if (append_qual != NULL) {
@@ -1053,6 +1054,7 @@ int stk_seq(int argc, char *argv[])
 					seq->qual.m = new_m;
 				}
 				memcpy(seq->qual.s + old_len, append_qual, append_q_l);
+				seq->qual.l = new_len;
 				seq->qual.s[new_len] = '\0';
 			}
 		}
