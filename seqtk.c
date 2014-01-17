@@ -1032,36 +1032,60 @@ int stk_seq(int argc, char *argv[])
 		}
 		if (flag & 128 && append_l > 0) { // appending sequence/qual
 			/* Do the appending */
-			int old_len = 0, new_len = 0;
+			size_t old_len = 0, new_len = 0, new_m=0;
 			if (append_seq != NULL) {
 				old_len = seq->seq.l;
 				new_len = old_len + append_l;
-				seq->seq.s = realloc(seq->seq.s, new_len + 1);
+				if (new_len + 1 > seq->seq.m) {
+					new_m = kroundup32(seq->seq.m);
+					seq->seq.s = realloc(seq->seq.s, new_m);
+					seq->seq.m = new_m;
+				}
 				memcpy(seq->seq.s + old_len, append_seq, append_l);
+				seq->seq.s[new_len] = '\0';
 			}
 			if (append_qual != NULL) {
 				old_len = seq->qual.l;
 				new_len = old_len + append_q_l;
-				seq->qual.s = realloc(seq->qual.s, new_len + 1);
+				if (new_len + 1 > seq->qual.m) {
+					new_m = kroundup32(seq->qual.m);
+					seq->qual.s = realloc(seq->qual.s, new_m);
+					seq->qual.m = new_m;
+				}
 				memcpy(seq->qual.s + old_len, append_qual, append_q_l);
+				seq->qual.s[new_len] = '\0';
 			}
 		}
 		if (flag & 256 && prepend_l > 0) { // prepending sequence/qual
 			/* Do the prepending */
-			int old_len = 0, new_len = 0;
+			size_t old_len = 0, new_len = 0, new_m=0;
 			if (prepend_seq != NULL) {
 				old_len = seq->seq.l;
 				new_len = old_len + prepend_l;
-				seq->seq.s = realloc(seq->seq.s, new_len + 1);
+				if (new_len + 1 > seq->seq.m) {
+					new_m = kroundup32(seq->seq.m);
+					seq->seq.s = realloc(seq->seq.s, new_m);
+					seq->seq.m = new_m;
+				}
 				memmove(seq->seq.s + prepend_l, seq->seq.s, old_len);
 				memcpy(seq->seq.s, prepend_seq, prepend_l);
+				seq->seq.l = new_len;
+				seq->seq.s[new_len] = '\0';
 			}
 			if (prepend_qual != NULL) {
 				old_len = seq->qual.l;
 				new_len = old_len + prepend_q_l;
-				seq->qual.s = realloc(seq->qual.s, new_len + 1);
+
+				if ( new_len + 1 > seq->qual.m) {
+					new_m = kroundup32(seq->qual.m);
+					seq->qual.s = realloc(seq->qual.s, new_m);
+					seq->qual.m = new_m;
+				}
+
 				memmove(seq->qual.s + prepend_q_l, seq->qual.s, old_len);
 				memcpy(seq->qual.s, prepend_qual, prepend_q_l);
+				seq->qual.l = new_len;
+				seq->qual.s[new_len] = '\0';
 			}
 		}
 		if (seq->qual.l && qual_thres > qual_shift) {
