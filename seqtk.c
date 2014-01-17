@@ -953,9 +953,13 @@ int stk_seq(int argc, char *argv[])
 	int64_t n_seqs = 0;
 	double frac = 1.;
 	khash_t(reg) *h = 0;
+	char *append_seq = NULL, *append_qual = NULL;
+	char *prepend_seq = NULL, *prepend_qual = NULL;
+	size_t append_l = 0, prepend_l = 0;
+	size_t append_q_l = 0, prepend_q_l = 0;
 
 	srand48(11);
-	while ((c = getopt(argc, argv, "12q:l:Q:aACrn:s:f:M:L:cV")) >= 0) {
+	while ((c = getopt(argc, argv, "12q:l:Q:aACrn:s:f:M:L:cVe:E:b:B:")) >= 0) {
 		switch (c) {
 			case 'a':
 			case 'A': flag |= 1; break;
@@ -965,6 +969,10 @@ int stk_seq(int argc, char *argv[])
 			case '1': flag |= 16; break;
 			case '2': flag |= 32; break;
 			case 'V': flag |= 64; break;
+			case 'e': flag |= 128; append_seq = strdup(optarg); break;
+			case 'E': flag |= 128; append_qual = strdup(optarg); break;
+			case 'b': flag |= 256; prepend_seq = strdup(optarg); break;
+			case 'B': flag |= 256; prepend_qual = strdup(optarg); break;
 			case 'M': h = stk_reg_read(optarg); break;
 			case 'n': mask_chr = *optarg; break;
 			case 'Q': qual_shift = atoi(optarg); break;
@@ -986,6 +994,10 @@ int stk_seq(int argc, char *argv[])
 		fprintf(stderr, "         -f FLOAT  sample FLOAT fraction of sequences [1]\n");
 		fprintf(stderr, "         -M FILE   mask regions in BED or name list FILE [null]\n");
 		fprintf(stderr, "         -L INT    drop sequences with length shorter than INT [0]\n");
+		fprintf(stderr, "         -b SEQ    add SEQ to the 'b'eginning of each sequence\n");
+		fprintf(stderr, "         -B QUAL   add ASCII QUAL to the 'B'eginning of each quality string\n");
+		fprintf(stderr, "         -e SEQ    add SEQ to the 'e'nd of each sequence\n");
+		fprintf(stderr, "         -E QUAL   add ASCII QUAL to the 'E'nd of each quality string\n");
 		fprintf(stderr, "         -c        mask complement region (effective with -M)\n");
 		fprintf(stderr, "         -r        reverse complement\n");
 		fprintf(stderr, "         -A        force FASTA output (discard quality)\n");
@@ -1000,6 +1012,16 @@ int stk_seq(int argc, char *argv[])
 	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
 	qual_thres += qual_shift;
+	if (append_seq != NULL) append_l = strlen(append_seq);
+	if (append_qual != NULL) append_q_l = strlen(append_qual);
+	if (prepend_seq != NULL) prepend_l = strlen(prepend_seq);
+	if (prepend_qual != NULL) prepend_q_l = strlen(prepend_qual);
+	if (append_l > 0 && append_q_l > 0 && append_l != append_q_l) {
+		fprintf(stderr, "WARNING: appending seq and quality that are not the same length\n");
+	}
+	if (prepend_l > 0 && prepend_q_l > 0 && prepend_l != prepend_q_l) {
+		fprintf(stderr, "WARNING: prepending seq and quality that are not the same length\n");
+	}
 	while (kseq_read(seq) >= 0) {
 		++n_seqs;
 		if (seq->seq.l < min_len) continue; // NB: length filter before taking random
@@ -1007,6 +1029,66 @@ int stk_seq(int argc, char *argv[])
 		if (flag & 48) { // then choose odd/even reads only
 			if ((flag&16) && (n_seqs&1) == 0) continue;
 			if ((flag&32) && (n_seqs&1) == 1) continue;
+		}
+		if (flag & 128 && append_l > 0) { // appending sequence/qual
+			/* Do the appending */
+			size_t old_len = 0, new_len = 0, new_m=0;
+			if (append_seq != NULL) {
+				old_len = seq->seq.l;
+				new_len = old_len + append_l;
+				if (new_len + 1 > seq->seq.m) {
+					new_m = kroundup32(seq->seq.m);
+					seq->seq.s = realloc(seq->seq.s, new_m);
+					seq->seq.m = new_m;
+				}
+				memcpy(seq->seq.s + old_len, append_seq, append_l);
+				seq->seq.l = new_len;
+				seq->seq.s[new_len] = '\0';
+			}
+			if (append_qual != NULL) {
+				old_len = seq->qual.l;
+				new_len = old_len + append_q_l;
+				if (new_len + 1 > seq->qual.m) {
+					new_m = kroundup32(seq->qual.m);
+					seq->qual.s = realloc(seq->qual.s, new_m);
+					seq->qual.m = new_m;
+				}
+				memcpy(seq->qual.s + old_len, append_qual, append_q_l);
+				seq->qual.l = new_len;
+				seq->qual.s[new_len] = '\0';
+			}
+		}
+		if (flag & 256 && prepend_l > 0) { // prepending sequence/qual
+			/* Do the prepending */
+			size_t old_len = 0, new_len = 0, new_m=0;
+			if (prepend_seq != NULL) {
+				old_len = seq->seq.l;
+				new_len = old_len + prepend_l;
+				if (new_len + 1 > seq->seq.m) {
+					new_m = kroundup32(seq->seq.m);
+					seq->seq.s = realloc(seq->seq.s, new_m);
+					seq->seq.m = new_m;
+				}
+				memmove(seq->seq.s + prepend_l, seq->seq.s, old_len);
+				memcpy(seq->seq.s, prepend_seq, prepend_l);
+				seq->seq.l = new_len;
+				seq->seq.s[new_len] = '\0';
+			}
+			if (prepend_qual != NULL) {
+				old_len = seq->qual.l;
+				new_len = old_len + prepend_q_l;
+
+				if ( new_len + 1 > seq->qual.m) {
+					new_m = kroundup32(seq->qual.m);
+					seq->qual.s = realloc(seq->qual.s, new_m);
+					seq->qual.m = new_m;
+				}
+
+				memmove(seq->qual.s + prepend_q_l, seq->qual.s, old_len);
+				memcpy(seq->qual.s, prepend_qual, prepend_q_l);
+				seq->qual.l = new_len;
+				seq->qual.s[new_len] = '\0';
+			}
 		}
 		if (seq->qual.l && qual_thres > qual_shift) {
 			if (mask_chr) {
@@ -1045,6 +1127,10 @@ int stk_seq(int argc, char *argv[])
 	kseq_destroy(seq);
 	gzclose(fp);
 	stk_reg_destroy(h);
+	free(append_seq);
+	free(append_qual);
+	free(prepend_seq);
+	free(prepend_qual);
 	return 0;
 }
 

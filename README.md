@@ -57,6 +57,12 @@ Seqtk Examples
 
         seqtk trimfq -b 5 -e 10 in.fa > out.fa
 
+* Append (or prepend) nucleic acid and/or quality scores to each sequence in a fast[qa] file:
+
+	seqtk seq -b ACGT -B IIII reads.fq > reads_prepended.fq
+	seqtk seq -e ACGT -E IIII reads.fq > reads_appended.fq
+
+
 Tabtk Examples
 --------------
 
