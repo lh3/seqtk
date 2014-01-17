@@ -1030,7 +1030,7 @@ int stk_seq(int argc, char *argv[])
 			if ((flag&16) && (n_seqs&1) == 0) continue;
 			if ((flag&32) && (n_seqs&1) == 1) continue;
 		}
-		if (flag & 128) { // appending sequence/qual
+		if (flag & 128 && append_l > 0) { // appending sequence/qual
 			/* Do the appending */
 			int old_len = 0, new_len = 0;
 			if (append_seq != NULL) {
