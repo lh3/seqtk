@@ -174,6 +174,75 @@ void stk_printseq(const kseq_t *s, int line_len)
 	}
 }
 
+/* 
+   64-bit Mersenne Twister pseudorandom number generator. Adapted from:
+
+     http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/VERSIONS/C-LANG/mt19937-64.c
+
+   which was written by Takuji Nishimura and Makoto Matsumoto and released
+   under the 3-clause BSD license.
+*/
+
+typedef uint64_t krint64_t;
+
+struct _krand_t;
+typedef struct _krand_t krand_t;
+
+#define KR_NN 312
+#define KR_MM 156
+#define KR_UM 0xFFFFFFFF80000000ULL /* Most significant 33 bits */
+#define KR_LM 0x7FFFFFFFULL /* Least significant 31 bits */
+
+struct _krand_t {
+	int mti;
+	krint64_t mt[KR_NN];
+};
+
+static void kr_srand0(krint64_t seed, krand_t *kr)
+{
+	kr->mt[0] = seed;
+	for (kr->mti = 1; kr->mti < KR_NN; ++kr->mti) 
+		kr->mt[kr->mti] = 6364136223846793005ULL * (kr->mt[kr->mti - 1] ^ (kr->mt[kr->mti - 1] >> 62)) + kr->mti;
+}
+
+krand_t *kr_srand(krint64_t seed)
+{
+	krand_t *kr;
+	kr = malloc(sizeof(krand_t));
+	kr_srand0(seed, kr);
+	return kr;
+}
+
+krint64_t kr_rand(krand_t *kr)
+{
+	krint64_t x;
+	static const krint64_t mag01[2] = { 0, 0xB5026F5AA96619E9ULL };
+    if (kr->mti >= KR_NN) {
+		int i;
+		if (kr->mti == KR_NN + 1) kr_srand0(5489ULL, kr);
+        for (i = 0; i < KR_NN - KR_MM; ++i) {
+            x = (kr->mt[i] & KR_UM) | (kr->mt[i+1] & KR_LM);
+            kr->mt[i] = kr->mt[i + KR_MM] ^ (x>>1) ^ mag01[(int)(x&1)];
+        }
+        for (; i < KR_NN - 1; ++i) {
+            x = (kr->mt[i] & KR_UM) | (kr->mt[i+1] & KR_LM);
+            kr->mt[i] = kr->mt[i + (KR_MM - KR_NN)] ^ (x>>1) ^ mag01[(int)(x&1)];
+        }
+        x = (kr->mt[KR_NN - 1] & KR_UM) | (kr->mt[0] & KR_LM);
+        kr->mt[KR_NN - 1] = kr->mt[KR_MM - 1] ^ (x>>1) ^ mag01[(int)(x&1)];
+        kr->mti = 0;
+    }
+    x = kr->mt[kr->mti++];
+    x ^= (x >> 29) & 0x5555555555555555ULL;
+    x ^= (x << 17) & 0x71D67FFFEDA60000ULL;
+    x ^= (x << 37) & 0xFFF7EEE000000000ULL;
+    x ^= (x >> 43);
+    return x;
+}
+
+#define kr_drand(_kr) ((kr_rand(_kr) >> 11) * (1.0/9007199254740992.0))
+
+
 /* quality based trimming with Mott's algorithm */
 int stk_trimfq(int argc, char *argv[])
 { // FIXME: when a record with zero length will always be treated as a fasta record
@@ -862,15 +931,16 @@ int stk_sample(int argc, char *argv[])
 	double frac = 0.;
 	gzFile fp;
 	kseq_t *seq, *buf = 0;
+	krand_t *kr = 0;
 
-	srand48(11);
 	while ((c = getopt(argc, argv, "s:")) >= 0)
-		switch (c) {
-		case 's': srand48(atoi(optarg)); break;
-		}
+		if (c == 's') kr = kr_srand(atol(optarg));
+	if (kr == 0) kr = kr_srand(11);
+
 	if (optind + 2 > argc) {
 		fprintf(stderr, "Usage: seqtk sample [-s seed=11] <in.fa> <frac>|<number>\n\n");
 		fprintf(stderr, "Warning: Large memory consumption for large <number>.\n");
+		free(kr);
 		return 1;
 	}
 	frac = atof(argv[optind+1]);
@@ -880,13 +950,14 @@ int stk_sample(int argc, char *argv[])
 	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
 	while (kseq_read(seq) >= 0) {
-		double r = drand48();
+		double r = kr_drand(kr);
 		++n_seqs;
 		if (num) {
 			uint64_t y = n_seqs - 1 < num? n_seqs - 1 : (uint64_t)(r * n_seqs);
 			if (y < num) cpy_kseq(&buf[y], seq);
 		} else if (r < frac) stk_printseq(seq, UINT_MAX);
 	}
+	free(kr);
 	kseq_destroy(seq);
 	gzclose(fp);
 	for (i = 0; i < num; ++i) {
@@ -953,8 +1024,8 @@ int stk_seq(int argc, char *argv[])
 	int64_t n_seqs = 0;
 	double frac = 1.;
 	khash_t(reg) *h = 0;
+	krand_t *kr = 0;
 
-	srand48(11);
 	while ((c = getopt(argc, argv, "12q:l:Q:aACrn:s:f:M:L:cV")) >= 0) {
 		switch (c) {
 			case 'a':
@@ -971,10 +1042,11 @@ int stk_seq(int argc, char *argv[])
 			case 'q': qual_thres = atoi(optarg); break;
 			case 'l': line_len = atoi(optarg); break;
 			case 'L': min_len = atoi(optarg); break;
-			case 's': srand48(atoi(optarg)); break;
+			case 's': kr = kr_srand(atol(optarg)); break;
 			case 'f': frac = atof(optarg); break;
 		}
 	}
+	if (kr == 0) kr = kr_srand(11);
 	if (argc == optind) {
 		fprintf(stderr, "\n");
 		fprintf(stderr, "Usage:   seqtk seq [options] <in.fq>|<in.fa>\n\n");
@@ -994,6 +1066,7 @@ int stk_seq(int argc, char *argv[])
 		fprintf(stderr, "         -2        output the 2n reads only\n");
 		fprintf(stderr, "         -V        shift quality by '(-Q) - 33'\n");
 		fprintf(stderr, "\n");
+		free(kr);
 		return 1;
 	}
 	if (line_len == 0) line_len = UINT_MAX;
@@ -1003,7 +1076,7 @@ int stk_seq(int argc, char *argv[])
 	while (kseq_read(seq) >= 0) {
 		++n_seqs;
 		if (seq->seq.l < min_len) continue; // NB: length filter before taking random
-		if (frac < 1. && drand48() >= frac) continue;
+		if (frac < 1. && kr_drand(kr) >= frac) continue;
 		if (flag & 48) { // then choose odd/even reads only
 			if ((flag&16) && (n_seqs&1) == 0) continue;
 			if ((flag&32) && (n_seqs&1) == 1) continue;
@@ -1045,6 +1118,7 @@ int stk_seq(int argc, char *argv[])
 	kseq_destroy(seq);
 	gzclose(fp);
 	stk_reg_destroy(h);
+	free(kr);
 	return 0;
 }
 
@@ -1053,7 +1127,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r32\n\n");
+	fprintf(stderr, "Version: 1.0-r45\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
