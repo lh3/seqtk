@@ -946,6 +946,11 @@ int stk_sample(int argc, char *argv[])
 	frac = atof(argv[optind+1]);
 	if (frac > 1.) num = (uint64_t)(frac + .499), frac = 0.;
 	if (num > 0) buf = calloc(num, sizeof(kseq_t));
+	if (buf == NULL) {
+		fprintf(stderr, "Could not allocate enough memory for %llu sequences. Exiting...\n", num);
+		free(kr);
+		exit(EXIT_FAILURE);
+	}
 
 	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
