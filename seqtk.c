@@ -27,6 +27,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <zlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -947,7 +948,7 @@ int stk_sample(int argc, char *argv[])
 	if (frac > 1.) num = (uint64_t)(frac + .499), frac = 0.;
 	if (num > 0) buf = calloc(num, sizeof(kseq_t));
 	if (buf == NULL) {
-		fprintf(stderr, "Could not allocate enough memory for %llu sequences. Exiting...\n", num);
+		fprintf(stderr, "Could not allocate enough memory for %" PRIu64 " sequences. Exiting...\n", num);
 		free(kr);
 		exit(EXIT_FAILURE);
 	}
