@@ -927,20 +927,24 @@ static void cpy_kseq(kseq_t *dst, const kseq_t *src)
 
 int stk_sample(int argc, char *argv[])
 {
-	int c;
+	int c, flag = 0;
 	uint64_t i, num = 0, n_seqs = 0;
 	double frac = 0.;
 	gzFile fp;
 	kseq_t *seq, *buf = 0;
 	krand_t *kr = 0;
 
-	while ((c = getopt(argc, argv, "s:")) >= 0)
+	while ((c = getopt(argc, argv, "s:o")) >= 0) {
 		if (c == 's') kr = kr_srand(atol(optarg));
+		if (c == 'o') flag |= 1;
+	}
 	if (kr == 0) kr = kr_srand(11);
 
 	if (optind + 2 > argc) {
-		fprintf(stderr, "Usage: seqtk sample [-s seed=11] <in.fa> <frac>|<number>\n\n");
+		fprintf(stderr, "Usage: seqtk sample [-s seed=11 -o] <in.fa> <frac>|<number>\n\n");
 		fprintf(stderr, "Warning: Large memory consumption for large <number>.\n");
+		fprintf(stderr, "Options:\n\t-o\tOversample. If <number> is greater than the number of reads\n");
+		fprintf(stderr, "\t\t\tin input, still give <number> of reads in output\n");
 		free(kr);
 		return 1;
 	}
@@ -963,13 +967,27 @@ int stk_sample(int argc, char *argv[])
 			if (y < num) cpy_kseq(&buf[y], seq);
 		} else if (r < frac) stk_printseq(seq, UINT_MAX);
 	}
+	if (flag & 1 && num > 0) {
+		/* We want to randomly "oversample" reads to end up with <number> */
+		const uint64_t n_seqs_in_infile = n_seqs;
+		uint64_t idx_to_cp = 0;
+		while (n_seqs < num) {
+			double r = kr_drand(kr);
+			idx_to_cp = (uint64_t)(r * n_seqs_in_infile);
+			if(idx_to_cp < num) cpy_kseq(&buf[n_seqs++], &buf[idx_to_cp]);
+		}
+	}
 	free(kr);
 	kseq_destroy(seq);
 	gzclose(fp);
 	for (i = 0; i < num; ++i) {
 		kseq_t *p = &buf[i];
 		if (p->seq.l) stk_printseq(p, UINT_MAX);
-		free(p->seq.s); free(p->qual.s); free(p->name.s);
+		/* Free everything if not NULL, *INCLUDING THE COMMENT*  */
+		if (p->seq.s != NULL) free(p->seq.s);
+		if (p->qual.s != NULL) free(p->qual.s);
+		if (p->name.s != NULL) free(p->name.s);
+		if (p->comment.s != NULL) free(p->comment.s);
 	}
 	free(buf);
 	return 0;
