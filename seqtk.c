@@ -947,7 +947,7 @@ int stk_sample(int argc, char *argv[])
 	frac = atof(argv[optind+1]);
 	if (frac > 1.) num = (uint64_t)(frac + .499), frac = 0.;
 	if (num > 0) buf = calloc(num, sizeof(kseq_t));
-	if (buf == NULL) {
+	if (num > 0 && buf == NULL) {
 		fprintf(stderr, "Could not allocate enough memory for %" PRIu64 " sequences. Exiting...\n", num);
 		free(kr);
 		exit(EXIT_FAILURE);
@@ -971,7 +971,7 @@ int stk_sample(int argc, char *argv[])
 		if (p->seq.l) stk_printseq(p, UINT_MAX);
 		free(p->seq.s); free(p->qual.s); free(p->name.s);
 	}
-	free(buf);
+	if (buf != NULL) free(buf);
 	return 0;
 }
 
