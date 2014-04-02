@@ -151,7 +151,7 @@ int main_num(int argc, char *argv[])
 		fprintf(stderr, "         -S CHAR    skip lines starting with CHAR [null]\n");
 		fprintf(stderr, "         -Q         output quartiles, stdandard deviation and skewness\n");
 		fprintf(stderr, "\n");
-		fprintf(stderr, "Notes: number, mean, min, max[, std.dev, skewness, 25%%-percentile, median, 75%%]\n\n");
+		fprintf(stderr, "Notes: number, mean, min, max[, std.dev, skewness, 25%%-percentile, median, 75%%, 2.5%%, 97.5%%]\n\n");
 		return 1;
 	}
 	fp = (optind == argc && !isatty(fileno(stdin))) || strcmp(argv[optind], "-") == 0? gzdopen(fileno(stdin), "r") : gzopen(argv[optind], "r");
@@ -183,7 +183,7 @@ int main_num(int argc, char *argv[])
 		printf("%llu\t%g\t%g\t%g", (unsigned long long)n, avg, min, max);
 		if (show_more) {
 			long double sum2 = 0., sum3 = 0.;
-			double q[3];
+			double q[3], CI[2];
 			uint64_t i;
 			if (n > 1) {
 				double g1, tmp;
@@ -201,7 +201,9 @@ int main_num(int argc, char *argv[])
 			q[0] = ks_ksmall(double, a.n, a.a, (int)(ceil(n * .25) + .499));
 			q[1] = ks_ksmall(double, a.n, a.a, (int)(ceil(n * .50) + .499));
 			q[2] = ks_ksmall(double, a.n, a.a, (int)(ceil(n * .75) + .499));
-			printf("\t%g\t%g\t%g", q[0], q[1], q[2]);
+			CI[0] = ks_ksmall(double, a.n, a.a, (int)(ceil(n * .025) + .499));
+			CI[1] = ks_ksmall(double, a.n, a.a, (int)(ceil(n * .975) + .499));
+			printf("\t%g\t%g\t%g\t%g\t%g", q[0], q[1], q[2], CI[0], CI[1]);
 		}
 	} else {
 		double q;
