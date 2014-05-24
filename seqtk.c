@@ -323,7 +323,7 @@ int stk_comp(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int l, c, upper_only = 0;
+	int l, c, upper_only = 0, from_stdin;
 	reghash_t *h = 0;
 	reglist_t dummy;
 	while ((c = getopt(argc, argv, "ur:")) >= 0) {
@@ -332,12 +332,15 @@ int stk_comp(int argc, char *argv[])
 			case 'r': h = stk_reg_read(optarg); break;
 		}
 	}
-	if (argc == optind) {
+	from_stdin = !isatty(fileno(stdin));
+	if (argc == optind && !from_stdin) {
 		fprintf(stderr, "Usage:  seqtk comp [-u] [-r in.bed] <in.fa>\n\n");
 		fprintf(stderr, "Output format: chr, length, #A, #C, #G, #T, #2, #3, #4, #CpG, #tv, #ts, #CpG-ts\n");
 		return 1;
 	}
-	fp = (strcmp(argv[optind], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[optind], "r");
+	if (from_stdin && strcmp(argv[optind], "-") != 0)
+		fprintf(stderr, "[W::%s] stdin is available; the input file is ignored!\n", __func__);
+	fp = !from_stdin && strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
 	dummy.n= dummy.m = 1; dummy.a = calloc(1, 8);
 	while ((l = kseq_read(seq)) >= 0) {
@@ -1025,14 +1028,14 @@ int stk_seq(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0;
+	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0, from_stdin;
 	unsigned i, line_len = 0;
 	int64_t n_seqs = 0;
 	double frac = 1.;
 	khash_t(reg) *h = 0;
 	krand_t *kr = 0;
 
-	while ((c = getopt(argc, argv, "12q:l:Q:aACrn:s:f:M:L:cV")) >= 0) {
+	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:cV")) >= 0) {
 		switch (c) {
 			case 'a':
 			case 'A': flag |= 1; break;
@@ -1042,6 +1045,7 @@ int stk_seq(int argc, char *argv[])
 			case '1': flag |= 16; break;
 			case '2': flag |= 32; break;
 			case 'V': flag |= 64; break;
+			case 'N': flag |= 128; break;
 			case 'M': h = stk_reg_read(optarg); break;
 			case 'n': mask_chr = *optarg; break;
 			case 'Q': qual_shift = atoi(optarg); break;
@@ -1053,7 +1057,8 @@ int stk_seq(int argc, char *argv[])
 		}
 	}
 	if (kr == 0) kr = kr_srand(11);
-	if (argc == optind) {
+	from_stdin = !isatty(fileno(stdin));
+	if (argc == optind && !from_stdin) {
 		fprintf(stderr, "\n");
 		fprintf(stderr, "Usage:   seqtk seq [options] <in.fq>|<in.fa>\n\n");
 		fprintf(stderr, "Options: -q INT    mask bases with quality lower than INT [0]\n");
@@ -1068,6 +1073,7 @@ int stk_seq(int argc, char *argv[])
 		fprintf(stderr, "         -r        reverse complement\n");
 		fprintf(stderr, "         -A        force FASTA output (discard quality)\n");
 		fprintf(stderr, "         -C        drop comments at the header lines\n");
+		fprintf(stderr, "         -N        drop sequences containing ambiguous bases\n");
 		fprintf(stderr, "         -1        output the 2n-1 reads only\n");
 		fprintf(stderr, "         -2        output the 2n reads only\n");
 		fprintf(stderr, "         -V        shift quality by '(-Q) - 33'\n");
@@ -1076,7 +1082,9 @@ int stk_seq(int argc, char *argv[])
 		return 1;
 	}
 	if (line_len == 0) line_len = UINT_MAX;
-	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
+	if (from_stdin && strcmp(argv[optind], "-") != 0)
+		fprintf(stderr, "[W::%s] stdin is available; the input file is ignored!\n", __func__);
+	fp = !from_stdin && strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
 	qual_thres += qual_shift;
 	while (kseq_read(seq) >= 0) {
@@ -1119,6 +1127,11 @@ int stk_seq(int argc, char *argv[])
 		if ((flag & 64) && seq->qual.l && qual_shift != 33)
 			for (i = 0; i < seq->qual.l; ++i)
 				seq->qual.s[i] -= qual_shift - 33;
+		if (flag & 128) {
+			for (i = 0; i < seq->seq.l; ++i)
+				if (seq_nt16to4_table[seq_nt16_table[(int)seq->seq.s[i]]] > 3) break;
+			if (i < seq->seq.l) continue;
+		}
 		stk_printseq(seq, line_len);
 	}
 	kseq_destroy(seq);
@@ -1132,13 +1145,11 @@ int stk_mergepe(int argc, char *argv[])
 {
 	gzFile fp1, fp2;
 	kseq_t *seq[2];
-	kstring_t str;
 
 	if (argc < 3) {
 		fprintf(stderr, "Usage: seqtk mergepe <in1.fq> <in2.fq>\n");
 		return 1;
 	}
-	str.l = str.m = 0; str.s = 0;
 	fp1 = strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
 	fp2 = strcmp(argv[2], "-")? gzopen(argv[2], "r") : gzdopen(fileno(stdin), "r");
 	seq[0] = kseq_init(fp1);
@@ -1155,7 +1166,45 @@ int stk_mergepe(int argc, char *argv[])
 		fprintf(stderr, "[W::%s] the 1st file has fewer records.\n", __func__);
 	kseq_destroy(seq[0]); gzclose(fp1);
 	kseq_destroy(seq[1]); gzclose(fp2);
-	free(str.s);
+	return 0;
+}
+
+int stk_dropse(int argc, char *argv[])
+{
+	gzFile fp;
+	kseq_t *seq, last;
+	int from_stdin;
+
+	from_stdin = !isatty(fileno(stdin));
+	if (argc == 1 && !from_stdin) {
+		fprintf(stderr, "Usage: seqtk dropSE <in.fq>\n");
+		return 1;
+	}
+	if (from_stdin && strcmp(argv[1], "-") != 0)
+		fprintf(stderr, "[W::%s] stdin is available; the input file is ignored!\n", __func__);
+	fp = !from_stdin && strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
+	seq = kseq_init(fp);
+
+	memset(&last, 0, sizeof(kseq_t));
+	while (kseq_read(seq) >= 0) {
+		if (last.name.l) {
+			kstring_t *p = &last.name, *q = &seq->name;
+			int is_diff;
+			if (p->l == q->l) {
+				int l = (p->l > 2 && p->s[p->l-2] == '/' && q->s[q->l-2] == '/' && isdigit(p->s[p->l-1]) && isdigit(q->s[q->l-1]))? p->l - 2 : p->l;
+				is_diff = strncmp(p->s, q->s, l);
+			} else is_diff = 1;
+			if (!is_diff) {
+				stk_printseq(&last, 0);
+				stk_printseq(seq, 0);
+				last.name.l = 0;
+			} else cpy_kseq(&last, seq);
+		} else cpy_kseq(&last, seq);
+	}
+
+	kseq_destroy(seq);
+	gzclose(fp);
+	// free last!
 	return 0;
 }
 
@@ -1164,7 +1213,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r55-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r56-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
@@ -1174,6 +1223,7 @@ static int usage()
 	fprintf(stderr, "         mutfa     point mutate FASTA at specified positions\n");
 	fprintf(stderr, "         mergefa   merge two FASTA/Q files\n");
 	fprintf(stderr, "         mergepe   interleave two PE FASTA/Q files\n");
+	fprintf(stderr, "         dropse    drop unpaired from interleaved PE FASTA/Q\n");
 	fprintf(stderr, "         randbase  choose a random base from hets\n");
 	fprintf(stderr, "         cutN      cut sequence at long N\n");
 	fprintf(stderr, "         listhet   extract the position of each het\n");
@@ -1190,6 +1240,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "mutfa") == 0) stk_mutfa(argc-1, argv+1);
 	else if (strcmp(argv[1], "mergefa") == 0) stk_mergefa(argc-1, argv+1);
 	else if (strcmp(argv[1], "mergepe") == 0) stk_mergepe(argc-1, argv+1);
+	else if (strcmp(argv[1], "dropse") == 0) stk_dropse(argc-1, argv+1);
 	else if (strcmp(argv[1], "randbase") == 0) stk_randbase(argc-1, argv+1);
 	else if (strcmp(argv[1], "cutN") == 0) stk_cutN(argc-1, argv+1);
 	else if (strcmp(argv[1], "listhet") == 0) stk_listhet(argc-1, argv+1);
