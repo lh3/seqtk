@@ -1082,7 +1082,7 @@ int stk_seq(int argc, char *argv[])
 		return 1;
 	}
 	if (line_len == 0) line_len = UINT_MAX;
-	if (from_stdin && strcmp(argv[optind], "-") != 0)
+	if (from_stdin && optind < argc && strcmp(argv[optind], "-") != 0)
 		fprintf(stderr, "[W::%s] stdin is available; the input file is ignored!\n", __func__);
 	fp = !from_stdin && strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
@@ -1180,7 +1180,7 @@ int stk_dropse(int argc, char *argv[])
 		fprintf(stderr, "Usage: seqtk dropSE <in.fq>\n");
 		return 1;
 	}
-	if (from_stdin && strcmp(argv[1], "-") != 0)
+	if (from_stdin && argc != 1 && strcmp(argv[1], "-") != 0)
 		fprintf(stderr, "[W::%s] stdin is available; the input file is ignored!\n", __func__);
 	fp = !from_stdin && strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
@@ -1213,7 +1213,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r56-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r57-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
