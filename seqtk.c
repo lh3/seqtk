@@ -147,7 +147,7 @@ char comp_tab[] = {
 
 static void stk_printstr(const kstring_t *s, unsigned line_len)
 {
-	if (line_len != UINT_MAX) {
+	if (line_len != UINT_MAX && line_len != 0) {
 		int i, rest = s->l;
 		for (i = 0; i < s->l; i += line_len, rest -= line_len) {
 			putchar('\n');
@@ -496,7 +496,7 @@ int stk_subseq(int argc, char *argv[])
 	khash_t(reg) *h = kh_init(reg);
 	gzFile fp;
 	kseq_t *seq;
-	int l, i, j, c, is_tab = 0, line = 1024;
+	int l, i, j, c, is_tab = 0, line = 0;
 	khint_t k;
 	while ((c = getopt(argc, argv, "tl:")) >= 0) {
 		switch (c) {
@@ -1128,12 +1128,43 @@ int stk_seq(int argc, char *argv[])
 	return 0;
 }
 
+int stk_mergepe(int argc, char *argv[])
+{
+	gzFile fp1, fp2;
+	kseq_t *seq[2];
+	kstring_t str;
+
+	if (argc < 3) {
+		fprintf(stderr, "Usage: seqtk mergepe <in1.fq> <in2.fq>\n");
+		return 1;
+	}
+	str.l = str.m = 0; str.s = 0;
+	fp1 = strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
+	fp2 = strcmp(argv[2], "-")? gzopen(argv[2], "r") : gzdopen(fileno(stdin), "r");
+	seq[0] = kseq_init(fp1);
+	seq[1] = kseq_init(fp2);
+	while (kseq_read(seq[0]) >= 0) {
+		if (kseq_read(seq[1]) < 0) {
+			fprintf(stderr, "[W::%s] the 2nd file has fewer records.\n", __func__);
+			break;
+		}
+		stk_printseq(seq[0], 0);
+		stk_printseq(seq[1], 0);
+	}
+	if (kseq_read(seq[1]) >= 0)
+		fprintf(stderr, "[W::%s] the 1st file has fewer records.\n", __func__);
+	kseq_destroy(seq[0]); gzclose(fp1);
+	kseq_destroy(seq[1]); gzclose(fp2);
+	free(str.s);
+	return 0;
+}
+
 /* main function */
 static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r45\n\n");
+	fprintf(stderr, "Version: 1.0-r55-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
@@ -1142,6 +1173,7 @@ static int usage()
 	fprintf(stderr, "         hety      regional heterozygosity\n");
 	fprintf(stderr, "         mutfa     point mutate FASTA at specified positions\n");
 	fprintf(stderr, "         mergefa   merge two FASTA/Q files\n");
+	fprintf(stderr, "         mergepe   interleave two PE FASTA/Q files\n");
 	fprintf(stderr, "         randbase  choose a random base from hets\n");
 	fprintf(stderr, "         cutN      cut sequence at long N\n");
 	fprintf(stderr, "         listhet   extract the position of each het\n");
@@ -1157,6 +1189,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "subseq") == 0) stk_subseq(argc-1, argv+1);
 	else if (strcmp(argv[1], "mutfa") == 0) stk_mutfa(argc-1, argv+1);
 	else if (strcmp(argv[1], "mergefa") == 0) stk_mergefa(argc-1, argv+1);
+	else if (strcmp(argv[1], "mergepe") == 0) stk_mergepe(argc-1, argv+1);
 	else if (strcmp(argv[1], "randbase") == 0) stk_randbase(argc-1, argv+1);
 	else if (strcmp(argv[1], "cutN") == 0) stk_cutN(argc-1, argv+1);
 	else if (strcmp(argv[1], "listhet") == 0) stk_listhet(argc-1, argv+1);
