@@ -174,8 +174,8 @@ int main(int argc, char *argv[])
 	for (j = 0; j < n_adaps; ++j) {
 		ta_adap_t *p = &adaps[j];
 		fprintf(stderr, "%-15ld ", (long)p->cnt);
-		for (i = 0; i < p->len; ++i) putchar("ACGTN"[(int)p->seq[i]]);
-		putchar('\n');
+		for (i = 0; i < p->len; ++i) fputc("ACGTN"[(int)p->seq[i]], stderr);
+		fputc('\n', stderr);
 		free(p->seq);
 		free(p->qp);
 	}
