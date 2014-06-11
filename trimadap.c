@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
 	}
 	for (j = 0; j < 5; ++j) mat[k++] = 0;
 
-	fp = !from_stdin && strcmp(argv[optind], "-")? gzopen(argv[optind], "rb") : gzdopen(fileno(stdin), "rb");
+	fp = optind < argc && strcmp(argv[optind], "-")? gzopen(argv[optind], "rb") : gzdopen(fileno(stdin), "rb");
 	ks = kseq_init(fp);
 	while (kseq_read(ks) >= 0) {
 		if (str.m < ks->seq.m) {

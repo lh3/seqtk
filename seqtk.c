@@ -340,7 +340,7 @@ int stk_comp(int argc, char *argv[])
 	}
 	if (from_stdin && strcmp(argv[optind], "-") != 0)
 		fprintf(stderr, "[W::%s] stdin is available; the input file is ignored!\n", __func__);
-	fp = !from_stdin && strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
+	fp = optind < argc && strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
 	dummy.n= dummy.m = 1; dummy.a = calloc(1, 8);
 	while ((l = kseq_read(seq)) >= 0) {
@@ -1084,7 +1084,7 @@ int stk_seq(int argc, char *argv[])
 	if (line_len == 0) line_len = UINT_MAX;
 	if (from_stdin && optind < argc && strcmp(argv[optind], "-") != 0)
 		fprintf(stderr, "[W::%s] stdin is available; the input file is ignored!\n", __func__);
-	fp = !from_stdin && strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
+	fp = optind < argc && strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
 	qual_thres += qual_shift;
 	while (kseq_read(seq) >= 0) {
@@ -1182,7 +1182,7 @@ int stk_dropse(int argc, char *argv[])
 	}
 	if (from_stdin && argc != 1 && strcmp(argv[1], "-") != 0)
 		fprintf(stderr, "[W::%s] stdin is available; the input file is ignored!\n", __func__);
-	fp = !from_stdin && strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
+	fp = argc > 1 && strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
 
 	memset(&last, 0, sizeof(kseq_t));
