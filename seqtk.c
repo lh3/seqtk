@@ -541,14 +541,14 @@ int stk_subseq(int argc, char *argv[])
 			} else printf("%s\t%d\t", seq->name.s, beg + 1);
 			if (end > seq->seq.l) end = seq->seq.l;
 			for (j = 0; j < end - beg; ++j) {
-				if (is_tab == 0 && line > 0 && j % line == 0) putchar('\n');
+				if (is_tab == 0 && (j == 0 || (line > 0 && j % line == 0))) putchar('\n');
 				putchar(seq->seq.s[j + beg]);
 			}
 			putchar('\n');
 			if (seq->qual.l != seq->seq.l || is_tab) continue;
 			printf("+");
 			for (j = 0; j < end - beg; ++j) {
-				if (line > 0 && j % line == 0) putchar('\n');
+				if (j == 0 || (line > 0 && j % line == 0)) putchar('\n');
 				putchar(seq->qual.s[j + beg]);
 			}
 			putchar('\n');
@@ -1213,7 +1213,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r57-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r63-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
