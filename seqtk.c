@@ -541,7 +541,7 @@ int stk_subseq(int argc, char *argv[])
 			} else printf("%s\t%d\t", seq->name.s, beg + 1);
 			if (end > seq->seq.l) end = seq->seq.l;
 			for (j = 0; j < end - beg; ++j) {
-				if (is_tab == 0 && j % line == 0) putchar('\n');
+				if (is_tab == 0 && line > 0 && j % line == 0) putchar('\n');
 				putchar(seq->seq.s[j + beg]);
 			}
 			putchar('\n');
