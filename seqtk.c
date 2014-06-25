@@ -548,7 +548,7 @@ int stk_subseq(int argc, char *argv[])
 			if (seq->qual.l != seq->seq.l || is_tab) continue;
 			printf("+");
 			for (j = 0; j < end - beg; ++j) {
-				if (j % line == 0) putchar('\n');
+				if (line > 0 && j % line == 0) putchar('\n');
 				putchar(seq->qual.s[j + beg]);
 			}
 			putchar('\n');
