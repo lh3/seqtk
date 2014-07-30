@@ -1028,14 +1028,14 @@ int stk_seq(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0, from_stdin;
+	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0, from_stdin, max_q = 255;
 	unsigned i, line_len = 0;
 	int64_t n_seqs = 0;
 	double frac = 1.;
 	khash_t(reg) *h = 0;
 	krand_t *kr = 0;
 
-	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:cV")) >= 0) {
+	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:cVX:")) >= 0) {
 		switch (c) {
 			case 'a':
 			case 'A': flag |= 1; break;
@@ -1050,6 +1050,7 @@ int stk_seq(int argc, char *argv[])
 			case 'n': mask_chr = *optarg; break;
 			case 'Q': qual_shift = atoi(optarg); break;
 			case 'q': qual_thres = atoi(optarg); break;
+			case 'X': max_q = atoi(optarg); break;
 			case 'l': line_len = atoi(optarg); break;
 			case 'L': min_len = atoi(optarg); break;
 			case 's': kr = kr_srand(atol(optarg)); break;
@@ -1062,6 +1063,7 @@ int stk_seq(int argc, char *argv[])
 		fprintf(stderr, "\n");
 		fprintf(stderr, "Usage:   seqtk seq [options] <in.fq>|<in.fa>\n\n");
 		fprintf(stderr, "Options: -q INT    mask bases with quality lower than INT [0]\n");
+		fprintf(stderr, "         -X INT    mask bases with quality higher than INT [255]\n");
 		fprintf(stderr, "         -n CHAR   masked bases converted to CHAR; 0 for lowercase [0]\n");
 		fprintf(stderr, "         -l INT    number of residues per line; 0 for 2^32-1 [%d]\n", line_len);
 		fprintf(stderr, "         -Q INT    quality shift: ASCII-INT gives base quality [%d]\n", qual_shift);
@@ -1082,8 +1084,6 @@ int stk_seq(int argc, char *argv[])
 		return 1;
 	}
 	if (line_len == 0) line_len = UINT_MAX;
-	if (from_stdin && optind < argc && strcmp(argv[optind], "-") != 0)
-		fprintf(stderr, "[W::%s] stdin is available; the input file is ignored!\n", __func__);
 	fp = optind < argc && strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
 	qual_thres += qual_shift;
@@ -1098,11 +1098,11 @@ int stk_seq(int argc, char *argv[])
 		if (seq->qual.l && qual_thres > qual_shift) {
 			if (mask_chr) {
 				for (i = 0; i < seq->seq.l; ++i)
-					if (seq->qual.s[i] < qual_thres)
+					if (seq->qual.s[i] < qual_thres || seq->qual.s[i] > max_q)
 						seq->seq.s[i] = mask_chr;
 			} else {
 				for (i = 0; i < seq->seq.l; ++i)
-					if (seq->qual.s[i] < qual_thres)
+					if (seq->qual.s[i] < qual_thres || seq->qual.s[i] > max_q)
 						seq->seq.s[i] = tolower(seq->seq.s[i]);
 			}
 		}
@@ -1213,7 +1213,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r63-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r64-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
