@@ -160,7 +160,15 @@ int main(int argc, char *argv[])
 			}
 		}
 		putchar(ks->qual.l? '@' : '>');
-		puts(ks->name.s);
+		fputs(ks->name.s, stdout); /* No EOL, incase we have a comment */
+		if (ks->comment.l != 0) {
+			/* Output the comment if we have one */
+			putchar(' ');
+			puts(ks->comment.s); /* including the EOL */
+		} else {
+			/* Otherwise the header still needs an EOL */
+			putchar('\n');
+		}
 		puts(ks->seq.s);
 		if (ks->qual.l) {
 			puts("+");
