@@ -32,6 +32,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
+#include <assert.h>
 #include <math.h>
 
 #include "kseq.h"
@@ -128,6 +129,26 @@ unsigned char seq_nt16_table[256] = {
 	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15,15,15,
 	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15,15,15,
 	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15,15,15
+};
+
+unsigned char seq_nt6_table[256] = {
+    0, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 1, 5, 2,  5, 5, 5, 3,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 1, 5, 2,  5, 5, 5, 3,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+
+    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5
 };
 
 char *seq_nt16_rev_table = "XACMGRSVTWYHKDBN";
@@ -1215,12 +1236,70 @@ int stk_dropse(int argc, char *argv[])
 	return 0;
 }
 
+
+int stk_kfreq(int argc, char *argv[])
+{
+	gzFile fp;
+	kseq_t *ks;
+	int kmer, i, l, mask;
+	char *nei;
+
+	if (argc < 2) {
+		fprintf(stderr, "Usage: seqtk kfreq <kmer> <in.fa>\n");
+		return 1;
+	}
+
+	// get the k-mer
+	l = strlen(argv[1]);
+	for (i = kmer = 0; i < l; ++i) {
+		int c = seq_nt6_table[(int)argv[1][i]];
+		assert(c >= 1 && c <= 4);
+		kmer = kmer << 2 | (c - 1);
+	}
+	mask = (1<<2*l) - 1;
+
+	// get the neighbors
+	nei = calloc(1, 1<<2*l);
+	for (i = 0; i < l; ++i) {
+		int j, x;
+		x = kmer & ~(3 << 2*i);
+		for (j = 0; j < 4; ++j) 
+			nei[x|j<<2*i] = 1;
+	}
+
+	fp = argc == 2 || strcmp(argv[2], "-") == 0? gzdopen(fileno(stdin), "r") : gzopen(argv[2], "r");
+	ks = kseq_init(fp);
+	while (kseq_read(ks) >= 0) {
+		int k, x[2], cnt[2], cnt_nei[2], which;
+		x[0] = x[1] = k = cnt[0] = cnt[1] = cnt_nei[0] = cnt_nei[1] = 0;
+		for (i = 0; i < ks->seq.l; ++i) {
+			int c = seq_nt6_table[(int)ks->seq.s[i]];
+			if (c >= 1 && c <= 4) {
+				x[0] = (x[0] << 2 | (c - 1)) & mask;
+				x[1] = (x[1] >> 2 | (4 - c) << 2*(l-1));
+				if (k < l) ++k;
+				if (k == l) {
+					if (x[0] == kmer) ++cnt[0];
+					else if (x[1] == kmer) ++cnt[1];
+					if (nei[x[0]]) ++cnt_nei[0];
+					else if (nei[x[1]]) ++cnt_nei[1];
+				}
+			} else k = 0;
+		}
+		which = cnt_nei[0] > cnt_nei[1]? 0 : 1;
+		printf("%s\t%ld\t%c\t%d\t%d\n", ks->name.s, ks->seq.l, "+-"[which], cnt_nei[which], cnt[which]);
+	}
+	kseq_destroy(ks);
+	gzclose(fp);
+	return 0;
+}
+
 /* main function */
 static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r65-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r66-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
@@ -1256,6 +1335,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "hrun") == 0) stk_hrun(argc-1, argv+1);
 	else if (strcmp(argv[1], "sample") == 0) stk_sample(argc-1, argv+1);
 	else if (strcmp(argv[1], "seq") == 0) stk_seq(argc-1, argv+1);
+	else if (strcmp(argv[1], "kfreq") == 0) stk_kfreq(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[main] unrecognized commad '%s'. Abort!\n", argv[1]);
 		return 1;
