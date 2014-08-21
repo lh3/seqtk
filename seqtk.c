@@ -833,10 +833,17 @@ static void print_seq(FILE *fpout, const kseq_t *ks, int begin, int end)
 {
 	int i;
 	if (begin >= end) return; // FIXME: why may this happen? Understand it!
-	fprintf(fpout, ">%s:%d-%d", ks->name.s, begin+1, end);
+	fprintf(fpout, "%c%s:%d-%d", ks->qual.l? '@' : '>', ks->name.s, begin+1, end);
 	for (i = begin; i < end && i < ks->seq.l; ++i) {
 		if ((i - begin)%60 == 0) fputc('\n', fpout);
 		fputc(ks->seq.s[i], fpout);
+	}
+	fputc('\n', fpout);
+	if (ks->qual.l == 0) return;
+	fputs("+\n", fpout);
+	for (i = begin; i < end && i < ks->qual.l; ++i) {
+		if ((i - begin)%60 == 0) fputc('\n', fpout);
+		fputc(ks->qual.s[i], fpout);
 	}
 	fputc('\n', fpout);
 }
@@ -1213,7 +1220,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r64-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r65-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
