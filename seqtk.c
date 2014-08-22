@@ -45,6 +45,7 @@ typedef struct {
 
 #include "khash.h"
 KHASH_MAP_INIT_STR(reg, reglist_t)
+KHASH_SET_INIT_INT64(64)
 
 typedef kh_reg_t reghash_t;
 
@@ -958,51 +959,100 @@ static void cpy_kseq(kseq_t *dst, const kseq_t *src)
 
 int stk_sample(int argc, char *argv[])
 {
-	int c;
+	int c, twopass = 0;
 	uint64_t i, num = 0, n_seqs = 0;
 	double frac = 0.;
 	gzFile fp;
-	kseq_t *seq, *buf = 0;
+	kseq_t *seq;
 	krand_t *kr = 0;
 
-	while ((c = getopt(argc, argv, "s:")) >= 0)
+	while ((c = getopt(argc, argv, "2s:")) >= 0)
 		if (c == 's') kr = kr_srand(atol(optarg));
-	if (kr == 0) kr = kr_srand(11);
+		else if (c == '2') twopass = 1;
 
 	if (optind + 2 > argc) {
-		fprintf(stderr, "Usage: seqtk sample [-s seed=11] <in.fa> <frac>|<number>\n\n");
-		fprintf(stderr, "Warning: Large memory consumption for large <number>.\n");
-		free(kr);
+		fprintf(stderr, "\n");
+		fprintf(stderr, "Usage:   seqtk sample [-2] [-s seed=11] <in.fa> <frac>|<number>\n\n");
+		fprintf(stderr, "Options: -s INT       RNG seed [11]\n");
+		fprintf(stderr, "         -2           2-pass mode: twice as slow but with much reduced memory\n\n");
 		return 1;
 	}
 	frac = atof(argv[optind+1]);
 	if (frac > 1.) num = (uint64_t)(frac + .499), frac = 0.;
-	if (num > 0) buf = calloc(num, sizeof(kseq_t));
-	if (num > 0 && buf == NULL) {
-		fprintf(stderr, "Could not allocate enough memory for %" PRIu64 " sequences. Exiting...\n", num);
-		free(kr);
-		exit(EXIT_FAILURE);
+	else if (twopass) {
+		fprintf(stderr, "[W::%s] when sampling a fraction, option -2 is ignored.", __func__);
+		twopass = 0;
+	}
+	if (kr == 0) kr = kr_srand(11);
+
+	if (!twopass) { // the streaming version
+		kseq_t *buf = 0;
+		if (num > 0) buf = calloc(num, sizeof(kseq_t));
+		if (num > 0 && buf == NULL) {
+			fprintf(stderr, "[E::%s] Could not allocate enough memory for %" PRIu64 " sequences. Exiting...\n", __func__, num);
+			free(kr);
+			return 1;
+		}
+
+		fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
+		seq = kseq_init(fp);
+		n_seqs = 0;
+		while (kseq_read(seq) >= 0) {
+			double r = kr_drand(kr);
+			++n_seqs;
+			if (num) {
+				uint64_t y = n_seqs - 1 < num? n_seqs - 1 : (uint64_t)(r * n_seqs);
+				if (y < num) cpy_kseq(&buf[y], seq);
+			} else if (r < frac) stk_printseq(seq, UINT_MAX);
+		}
+		for (i = 0; i < num; ++i) {
+			kseq_t *p = &buf[i];
+			if (p->seq.l) stk_printseq(p, UINT_MAX);
+			free(p->seq.s); free(p->qual.s); free(p->name.s);
+		}
+		if (buf != NULL) free(buf);
+	} else {
+		uint64_t *buf;
+		khash_t(64) *hash;
+		int absent;
+
+		if (strcmp(argv[optind], "-") == 0) {
+			fprintf(stderr, "[E::%s] in the 2-pass mode, the input cannot be STDIN.\n", __func__);
+			free(kr);
+			return 1;
+		}
+
+		// 1st pass
+		buf = malloc(num * 8);
+		for (i = 0; i < num; ++i) buf[i] = UINT64_MAX;
+		fp = gzopen(argv[optind], "r");
+		seq = kseq_init(fp);
+		n_seqs = 0;
+		while (kseq_read(seq) >= 0) {
+			double r = kr_drand(kr);
+			uint64_t y;
+			++n_seqs;
+			y = n_seqs - 1 < num? n_seqs - 1 : (uint64_t)(r * n_seqs);
+			if (y < num) buf[y] = n_seqs;
+		}
+		kseq_destroy(seq);
+		gzclose(fp);
+		hash = kh_init(64);
+		for (i = 0; i < num; ++i) kh_put(64, hash, buf[i], &absent);
+		free(buf);
+		// 2nd pass
+		fp = gzopen(argv[optind], "r");
+		seq = kseq_init(fp);
+		n_seqs = 0;
+		while (kseq_read(seq) >= 0)
+			if (kh_get(64, hash, ++n_seqs) != kh_end(hash))
+				stk_printseq(seq, UINT_MAX);
+		kh_destroy(64, hash);
 	}
 
-	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
-	seq = kseq_init(fp);
-	while (kseq_read(seq) >= 0) {
-		double r = kr_drand(kr);
-		++n_seqs;
-		if (num) {
-			uint64_t y = n_seqs - 1 < num? n_seqs - 1 : (uint64_t)(r * n_seqs);
-			if (y < num) cpy_kseq(&buf[y], seq);
-		} else if (r < frac) stk_printseq(seq, UINT_MAX);
-	}
-	free(kr);
 	kseq_destroy(seq);
 	gzclose(fp);
-	for (i = 0; i < num; ++i) {
-		kseq_t *p = &buf[i];
-		if (p->seq.l) stk_printseq(p, UINT_MAX);
-		free(p->seq.s); free(p->qual.s); free(p->name.s);
-	}
-	if (buf != NULL) free(buf);
+	free(kr);
 	return 0;
 }
 
@@ -1299,16 +1349,16 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r66-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r67-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
 	fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
+	fprintf(stderr, "         mergepe   interleave two PE FASTA/Q files\n");
 	fprintf(stderr, "         trimfq    trim FASTQ using the Phred algorithm\n\n");
 	fprintf(stderr, "         hety      regional heterozygosity\n");
 	fprintf(stderr, "         mutfa     point mutate FASTA at specified positions\n");
 	fprintf(stderr, "         mergefa   merge two FASTA/Q files\n");
-	fprintf(stderr, "         mergepe   interleave two PE FASTA/Q files\n");
 	fprintf(stderr, "         dropse    drop unpaired from interleaved PE FASTA/Q\n");
 	fprintf(stderr, "         randbase  choose a random base from hets\n");
 	fprintf(stderr, "         cutN      cut sequence at long N\n");
