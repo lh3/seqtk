@@ -272,22 +272,26 @@ int stk_trimfq(int argc, char *argv[])
 	gzFile fp;
 	kseq_t *seq;
 	double param = 0.05, q_int2real[128];
-	int i, c, min_len = 30, left = 0, right = 0;
+	int i, c, min_len = 30, left = 0, right = 0, left_keep = 0, right_keep = 0;
 	while ((c = getopt(argc, argv, "l:q:b:e:")) >= 0) {
 		switch (c) {
 			case 'q': param = atof(optarg); break;
 			case 'l': min_len = atoi(optarg); break;
 			case 'b': left = atoi(optarg); break;
 			case 'e': right = atoi(optarg); break;
+			case 'B': left_keep = atoi(optarg); break;
+			case 'E': right_keep = atoi(optarg); break;
 		}
 	}
 	if (optind == argc) {
 		fprintf(stderr, "\n");
 		fprintf(stderr, "Usage:   seqtk trimfq [options] <in.fq>\n\n");
 		fprintf(stderr, "Options: -q FLOAT    error rate threshold (disabled by -b/-e) [%.2f]\n", param);
-		fprintf(stderr, "         -l INT      maximally trim down to INT bp (disabled by -b/-e) [%d]\n", min_len);
+		fprintf(stderr, "         -l INT      maximally trim down from rigth to INT bp (disabled by -b/-e) [%d]\n", min_len);
 		fprintf(stderr, "         -b INT      trim INT bp from left (non-zero to disable -q/-l) [0]\n");
 		fprintf(stderr, "         -e INT      trim INT bp from right (non-zero to disable -q/-l) [0]\n");
+		fprintf(stderr, "         -B INT      trim down from right and keep first INT bp from left (disabled by -q/-l/-b/-e) [%d]\n", left_keep);
+		fprintf(stderr, "         -E INT      trim down from left and keep last INT bp from right (disabled by -q/-l/-b/-e/-B) [%d]\n", right_keep);
 		fprintf(stderr, "\n");
 		return 1;
 	}
@@ -301,6 +305,11 @@ int stk_trimfq(int argc, char *argv[])
 		if (left || right) {
 			beg = left; end = seq->seq.l - right;
 			if (beg >= end) beg = end = 0;
+		} else if (left_keep) {
+			beg = 0; end = left_keep;
+		} else if (right_keep) {
+			beg = seq->seq.l - right_keep; end = seq->seq.l;
+			if (beg < 0) beg = 0;
 		} else if (seq->qual.l > min_len) {
 			for (i = 0, beg = tmp = 0, end = seq->qual.l, s = max = 0.; i < seq->qual.l; ++i) {
 				int q = seq->qual.s[i];
