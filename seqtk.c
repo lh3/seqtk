@@ -273,7 +273,7 @@ int stk_trimfq(int argc, char *argv[])
 	kseq_t *seq;
 	double param = 0.05, q_int2real[128];
 	int i, c, min_len = 30, left = 0, right = 0, left_keep = 0, right_keep = 0;
-	while ((c = getopt(argc, argv, "l:q:b:e:")) >= 0) {
+	while ((c = getopt(argc, argv, "l:q:b:e:B:E:")) >= 0) {
 		switch (c) {
 			case 'q': param = atof(optarg); break;
 			case 'l': min_len = atoi(optarg); break;
@@ -307,10 +307,11 @@ int stk_trimfq(int argc, char *argv[])
 			if (beg >= end) beg = end = 0;
 		} else if (left_keep) {
 			beg = 0; end = left_keep;
+			if (seq->seq.l < end) end = seq->seq.l;
 		} else if (right_keep) {
 			beg = seq->seq.l - right_keep; end = seq->seq.l;
 			if (beg < 0) beg = 0;
-		} else if (seq->qual.l > min_len) {
+		} else if (seq->qual.l > min_len && param != 0) {
 			for (i = 0, beg = tmp = 0, end = seq->qual.l, s = max = 0.; i < seq->qual.l; ++i) {
 				int q = seq->qual.s[i];
 				if (q < 36) q = 36;
@@ -321,7 +322,7 @@ int stk_trimfq(int argc, char *argv[])
 			}
 
 			/* max never set; all low qual, just give first min_len bp */
-			if (max == 0.) beg = 0, end = min_len;
+			if (max == 0. || param == 0) beg = 0, end = min_len;
 
 			if (end - beg < min_len) { // window-based 
 				int is, imax;
