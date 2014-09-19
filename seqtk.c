@@ -301,7 +301,7 @@ int stk_trimfq(int argc, char *argv[])
 		q_int2real[i] = pow(10., -(i - 33) / 10.);
 	while (kseq_read(seq) >= 0) {
 		int beg, tmp, end;
-		double s, max;
+		double s, max = 0.;
 		if (left || right) {
 			beg = left; end = seq->seq.l - right;
 			if (beg >= end) beg = end = 0;
@@ -311,7 +311,7 @@ int stk_trimfq(int argc, char *argv[])
 		} else if (right_keep) {
 			beg = seq->seq.l - right_keep; end = seq->seq.l;
 			if (beg < 0) beg = 0;
-		} else if (seq->qual.l > min_len && param != 0) {
+		} else if (seq->qual.l > min_len && param != 0.) {
 			for (i = 0, beg = tmp = 0, end = seq->qual.l, s = max = 0.; i < seq->qual.l; ++i) {
 				int q = seq->qual.s[i];
 				if (q < 36) q = 36;
@@ -322,7 +322,7 @@ int stk_trimfq(int argc, char *argv[])
 			}
 
 			/* max never set; all low qual, just give first min_len bp */
-			if (max == 0. || param == 0) beg = 0, end = min_len;
+			if (max == 0.) beg = 0, end = min_len;
 
 			if (end - beg < min_len) { // window-based 
 				int is, imax;
