@@ -287,7 +287,7 @@ int stk_trimfq(int argc, char *argv[])
 		fprintf(stderr, "\n");
 		fprintf(stderr, "Usage:   seqtk trimfq [options] <in.fq>\n\n");
 		fprintf(stderr, "Options: -q FLOAT    error rate threshold (disabled by -b/-e) [%.2f]\n", param);
-		fprintf(stderr, "         -l INT      maximally trim down from rigth to INT bp (disabled by -b/-e) [%d]\n", min_len);
+		fprintf(stderr, "         -l INT      maximally trim down from rigth to INT bp (disabled by -b/-e/-B/-E) [%d]\n", min_len);
 		fprintf(stderr, "         -b INT      trim INT bp from left (non-zero to disable -q/-l) [0]\n");
 		fprintf(stderr, "         -e INT      trim INT bp from right (non-zero to disable -q/-l) [0]\n");
 		fprintf(stderr, "         -B INT      trim down from right and keep first INT bp from left (disabled by -q/-l/-b/-e) [%d]\n", left_keep);
