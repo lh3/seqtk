@@ -37,6 +37,7 @@ typedef struct {
 int main(int argc, char *argv[])
 {
 	int n_adaps, m_adaps;
+	int rm_adapt_seq = 0;
 	int c, i, j, k, from_stdin;
 	int sa = 1, sb = 2, go = 1, ge = 3, type = 1;
 	int min_sc = 15, min_len = 10;
@@ -48,7 +49,7 @@ int main(int argc, char *argv[])
 	kstring_t str = {0,0,0};
 
 	n_adaps = m_adaps = 0; adaps = 0;
-	while ((c = getopt(argc, argv, "5:3:s:t:l:")) >= 0) {
+	while ((c = getopt(argc, argv, "5:3:s:t:l:r")) >= 0) {
 		if (c == '5' || c == '3') {
 			ta_adap_t *p;
 			if (m_adaps == n_adaps) {
@@ -63,6 +64,7 @@ int main(int argc, char *argv[])
 		} else if (c == 's') min_sc = atoi(optarg);
 		else if (c == 'd') max_diff = atof(optarg);
 		else if (c == 'l') min_len = atoi(optarg);
+        else if (c == 'r') rm_adapt_seq |= 1;
 	}
 
 	// preset
@@ -93,6 +95,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "         -l INT     min length [%d]\n", min_len);
 		fprintf(stderr, "         -s INT     min score [%d]\n", min_sc);
 		fprintf(stderr, "         -d FLOAT   max difference [%.3f]\n", max_diff);
+		fprintf(stderr, "         -r         trim read to remove adaptor, instead of masking adaptor with 'X'\n");
 		fprintf(stderr, "\n");
 		return 1; // FIXME: memory leak
 	}
@@ -153,10 +156,44 @@ int main(int argc, char *argv[])
 			if (p->type == 5) {
 				k = r.te + (p->len - r.qe);
 				k = k < str.l? k : str.l;
-				for (i = 0; i < k; ++i) ks->seq.s[i] = 'X';
+				if (rm_adapt_seq) {
+					if (ks->seq.l - k > 0) {
+						strncpy(ks->seq.s, ks->seq.s + k, ks->seq.l);
+						strncpy(ks->qual.s, ks->qual.s + k, ks->qual.l);
+						ks->seq.l -= k;
+						ks->qual.l -= k;
+					} else {
+						/* remove entire read in paring friendly way */
+						ks->seq.s[0] = 'N';
+						ks->seq.s[1] = '\0';
+						ks->seq.l = 1;
+						/* Keep first qual char, preserves encoding */
+						ks->qual.s[1] = '\0';
+						ks->qual.l = 1;
+					}
+				} else {
+					for (i = 0; i < k; ++i) ks->seq.s[i] = 'X';
+				}
 			} else if (p->type == 3) {
 				k = r.tb > r.qb? r.tb - r.qb : 0;
-				for (i = k; i < str.l; ++i) ks->seq.s[i] = 'X';
+				if (rm_adapt_seq) {
+					if (k > 0) {
+						ks->seq.s[k] = '\0';
+						ks->seq.l = k - 1;
+						ks->qual.s[k] = '\0';
+						ks->qual.l = k - 1;
+					} else {
+						/* remove entire read in paring friendly way */
+						ks->seq.s[0] = 'N';
+						ks->seq.s[1] = '\0';
+						ks->seq.l = 1;
+						/* Keep first qual char, preserves encoding */
+						ks->qual.s[1] = '\0';
+						ks->qual.l = 1;
+					}
+				} else {
+					for (i = k; i < str.l; ++i) ks->seq.s[i] = 'X';
+				}
 			}
 		}
 		putchar(ks->qual.l? '@' : '>');
