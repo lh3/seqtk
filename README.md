@@ -54,3 +54,10 @@ Seqtk Examples
 
         seqtk trimfq -b 5 -e 10 in.fa > out.fa
 
+* Keep first 50bp from the left end of each read by trimming the right end:
+
+        seqtk trimfq -B 50 in.fq > out.fq
+
+* Keep last 50bp from the right end of each read by trimming the left end:
+
+        seqtk trimfq -E 50 in.fq > out.fq
