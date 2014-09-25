@@ -287,11 +287,11 @@ int stk_trimfq(int argc, char *argv[])
 		fprintf(stderr, "\n");
 		fprintf(stderr, "Usage:   seqtk trimfq [options] <in.fq>\n\n");
 		fprintf(stderr, "Options: -q FLOAT    error rate threshold (disabled by -b/-e) [%.2f]\n", param);
-		fprintf(stderr, "         -l INT      maximally trim down from right end to INT bp (disabled by -b/-e/-B/-E) [%d]\n", min_len);
-		fprintf(stderr, "         -b INT      trim INT bp from left (non-zero to disable -q/-l) [0]\n");
-		fprintf(stderr, "         -e INT      trim INT bp from right (non-zero to disable -q/-l) [0]\n");
-		fprintf(stderr, "         -B INT      trim down from right and keep first INT bp from left (disabled by -q/-l/-b/-e) [%d]\n", left_keep);
-		fprintf(stderr, "         -E INT      trim down from left and keep last INT bp from right (disabled by -q/-l/-b/-e/-B) [%d]\n", right_keep);
+		fprintf(stderr, "         -l INT      maximally trims down from right end to INT bp (disabled by -b/-e/-B/-E) [%d]\n", min_len);
+		fprintf(stderr, "         -b INT      trim INT bp from left (non-zero to disable -q/-l; it has priority over -B) [0]\n");
+		fprintf(stderr, "         -e INT      trim INT bp from right (non-zero to disable -q/-l; it has priority over -E) [0]\n");
+		fprintf(stderr, "         -B INT      keep first INT bp from left (disabled by -q/-l/-e) [%d]\n", left_keep);
+		fprintf(stderr, "         -E INT      keep last INT bp from right (disabled by -q/-l/-b/-B) [%d]\n", right_keep);
 		fprintf(stderr, "\n");
 		return 1;
 	}
@@ -302,15 +302,17 @@ int stk_trimfq(int argc, char *argv[])
 	while (kseq_read(seq) >= 0) {
 		int beg, tmp, end;
 		double s, max = 0.;
-		if (left || right) {
+		if (left_keep) {
+			beg = left; end = left + left_keep;
+			if (seq->seq.l < end) end = seq->seq.l;
+			if (seq->seq.l < beg ) beg = end = 0;
+		} else if (right_keep) {
+			beg = seq->seq.l - right_keep - right; end = seq->seq.l - right;
+			if (beg < 0) beg = 0;
+			if (end < 0 ) beg = end = 0;
+		} else if (left || right) {
 			beg = left; end = seq->seq.l - right;
 			if (beg >= end) beg = end = 0;
-		} else if (left_keep) {
-			beg = 0; end = left_keep;
-			if (seq->seq.l < end) end = seq->seq.l;
-		} else if (right_keep) {
-			beg = seq->seq.l - right_keep; end = seq->seq.l;
-			if (beg < 0) beg = 0;
 		} else if (seq->qual.l > min_len && param != 0.) {
 			for (i = 0, beg = tmp = 0, end = seq->qual.l, s = max = 0.; i < seq->qual.l; ++i) {
 				int q = seq->qual.s[i];
@@ -1360,7 +1362,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r68a-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r68b-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
