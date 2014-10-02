@@ -272,7 +272,7 @@ int stk_trimfq(int argc, char *argv[])
 	gzFile fp;
 	kseq_t *seq;
 	double param = 0.05, q_int2real[128];
-	int i, c, min_len = 1, left = 0, right = 0, left_keep = 0, right_keep = 0;
+	int i, c, min_len = 30, left = 0, right = 0, left_keep = 0, right_keep = 0;
 	while ((c = getopt(argc, argv, "l:q:b:e:B:E:")) >= 0) {
 		switch (c) {
 			case 'q': param = atof(optarg); break;
@@ -305,14 +305,18 @@ int stk_trimfq(int argc, char *argv[])
 		if (left_keep) {
 			beg = left; end = left + left_keep;
 			if (seq->seq.l < end) end = seq->seq.l;
-			if (seq->seq.l < beg || end < min_len || end - beg < min_len) { beg = 0; end = min_len }
+			if (seq->seq.l < beg) beg = seq->seq.l;
+			if (end - beg < 1) { beg = 0; end = 1 }
 		} else if (right_keep) {
 			beg = seq->seq.l - right_keep - right; end = seq->seq.l - right;
 			if (beg < 0) beg = 0;
-			if (end < min_len || end - beg < min_len) { beg = 0; end = min_len }
+			if (end < 0) end = 0;
+			if (end - beg < 1) { beg = 0; end = 1 }
 		} else if (left || right) {
 			beg = left; end = seq->seq.l - right;
-			if (beg >= end || end < min_len || end - beg < min_len) { beg = 0; end = min_len; }
+			if (end < 0) end = 0;
+			if (seq->seq.l < beg) beg = seq->seq.l;
+			if (end - beg < 1) { beg = 0; end = 1 }
 		} else if (seq->qual.l > min_len && param != 0.) {
 			for (i = 0, beg = tmp = 0, end = seq->qual.l, s = max = 0.; i < seq->qual.l; ++i) {
 				int q = seq->qual.s[i];
