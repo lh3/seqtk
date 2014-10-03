@@ -309,7 +309,7 @@ int stk_trimfq(int argc, char *argv[])
 			seq->qual.l = 1;
 			seq->seq.s = (char*)malloc(2);
 			seq->seq.s[0] = 'A';
-			seq->qual.l = (char*)malloc(2);
+			seq->qual.s = (char*)malloc(2);
 			seq->qual.s[0]='F';
 		} else if (left_keep) {
 			beg = left; end = left + left_keep;
