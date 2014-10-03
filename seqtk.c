@@ -287,7 +287,7 @@ int stk_trimfq(int argc, char *argv[])
 		fprintf(stderr, "\n");
 		fprintf(stderr, "Usage:   seqtk trimfq [options] <in.fq>\n\n");
 		fprintf(stderr, "Options: -q FLOAT    error rate threshold (disabled by -b/-e) [%.2f]\n", param);
-		fprintf(stderr, "         -l INT      maximally trims down from right end to INT bp [%d]\n", min_len);
+		fprintf(stderr, "         -l INT      maximally trims down from right end to INT bp when the trimming results in read length below this [%d]\n", min_len);
 		fprintf(stderr, "         -b INT      trim INT bp from left (non-zero to disable -q; it has priority over -B) [0]\n");
 		fprintf(stderr, "         -e INT      trim INT bp from right (non-zero to disable -q; it has priority over -E) [0]\n");
 		fprintf(stderr, "         -B INT      keep first INT bp from left (disabled by -q/-e) [%d]\n", left_keep);
@@ -306,17 +306,17 @@ int stk_trimfq(int argc, char *argv[])
 			beg = left; end = left + left_keep;
 			if (seq->seq.l < end) end = seq->seq.l;
 			if (seq->seq.l < beg) beg = seq->seq.l;
-			if (end - beg < min_len) { beg = 0; end = min_len }
+			if (end - beg < min_len) { beg = 0; end = min_len; }
 		} else if (right_keep) {
 			beg = seq->seq.l - right_keep - right; end = seq->seq.l - right;
 			if (beg < 0) beg = 0;
 			if (end < 0) end = 0;
-			if (end - beg < min_len) { beg = 0; end = min_len }
+			if (end - beg < min_len) { beg = 0; end = min_len; }
 		} else if (left || right) {
 			beg = left; end = seq->seq.l - right;
 			if (end < 0) end = 0;
 			if (seq->seq.l < beg) beg = seq->seq.l;
-			if (end - beg < min_len) { beg = 0; end = min_len }
+			if (end - beg < min_len) { beg = 0; end = min_len; }
 		} else if (seq->qual.l > min_len && param != 0.) {
 			for (i = 0, beg = tmp = 0, end = seq->qual.l, s = max = 0.; i < seq->qual.l; ++i) {
 				int q = seq->qual.s[i];
