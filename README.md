@@ -69,3 +69,7 @@ Seqtk Examples
 * Trim 5bp from right end and keep the 50bp from right end of each read:
 
         seqtk trimfq -E 50 -e 5 in.fq > out.fq
+
+* Trim 5bp from right end and keep the 50bp from right end of each read and if trimmed read length ends up having less the 20bp then the first 20 bp should be kept only:
+
+        seqtk trimfq -E 50 -e 5 -l 20 in.fq > out.fq
