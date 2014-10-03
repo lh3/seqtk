@@ -272,7 +272,7 @@ int stk_trimfq(int argc, char *argv[])
 	gzFile fp;
 	kseq_t *seq;
 	double param = 0.05, q_int2real[128];
-	int i, c, min_len = 30, left = 0, right = 0, left_keep = 0, right_keep = 0;
+	int i, c, min_len = 1, left = 0, right = 0, left_keep = 0, right_keep = 0;
 	while ((c = getopt(argc, argv, "l:q:b:e:B:E:")) >= 0) {
 		switch (c) {
 			case 'q': param = atof(optarg); break;
@@ -302,7 +302,16 @@ int stk_trimfq(int argc, char *argv[])
 	while (kseq_read(seq) >= 0) {
 		int beg, tmp, end;
 		double s, max = 0.;
-		if (left_keep) {
+		if (seq->seq.l == 0) { // trying to fix locally the bug where reads with no sequence are converted to FASTA format
+			beg = 0;
+			end = 1;
+			seq->seq.l = 1;
+			seq->qual.l = 1;
+			seq->seq.s = (char*)malloc(2);
+			seq->seq.s[0] = 'A';
+			seq->qual.l = (char*)malloc(2);
+			seq->qual.s[0]='F';
+		} else if (left_keep) {
 			beg = left; end = left + left_keep;
 			if (seq->seq.l < end) end = seq->seq.l;
 			if (seq->seq.l < beg) beg = seq->seq.l;
