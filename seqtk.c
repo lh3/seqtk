@@ -315,17 +315,29 @@ int stk_trimfq(int argc, char *argv[])
 			beg = left; end = left + left_keep;
 			if (seq->seq.l < end) end = seq->seq.l;
 			if (seq->seq.l < beg) beg = seq->seq.l;
-			if (end - beg < min_len) { beg = 0; end = min_len; }
+			if (end - beg < min_len) { 
+				beg = 0; 
+				end = min_len; 
+				if (end > seq->seq.l) end = seq->seq.l;
+			}
 		} else if (right_keep) {
 			beg = seq->seq.l - right_keep - right; end = seq->seq.l - right;
 			if (beg < 0) beg = 0;
 			if (end < 0) end = 0;
-			if (end - beg < min_len) { beg = 0; end = min_len; }
+			if (end - beg < min_len) { 
+				beg = 0; 
+				end = min_len; 
+				if (end > seq->seq.l) end = seq->seq.l;
+			}
 		} else if (left || right) {
 			beg = left; end = seq->seq.l - right;
 			if (end < 0) end = 0;
 			if (seq->seq.l < beg) beg = seq->seq.l;
-			if (end - beg < min_len) { beg = 0; end = min_len; }
+			if (end - beg < min_len) { 
+				beg = 0; 
+				end = min_len; 
+				if (end > seq->seq.l) end = seq->seq.l;
+			}
 		} else if (seq->qual.l > min_len && param != 0.) {
 			for (i = 0, beg = tmp = 0, end = seq->qual.l, s = max = 0.; i < seq->qual.l; ++i) {
 				int q = seq->qual.s[i];
