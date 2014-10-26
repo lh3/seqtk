@@ -1345,16 +1345,106 @@ int stk_kfreq(int argc, char *argv[])
 	return 0;
 }
 
+/* fqchk */
+
+typedef struct {
+	int64_t q[94], b[5];
+} posstat_t;
+
+static void fqc_aux(posstat_t *p, int pos, int64_t allq[94], double perr[94])
+{
+	int k;
+	int64_t sum = 0, qsum = 0;
+	double psum = 0;
+	if (pos <= 0) printf("ALL");
+	else printf("%d", pos);
+	for (k = 0; k <= 4; ++k) sum += p->b[k];
+	printf("\t%lld", (long long)sum);
+	for (k = 0; k <= 4; ++k)
+		printf("\t%.1f", 100. * p->b[k] / sum);
+	for (k = 0; k <= 93; ++k)
+		qsum += p->q[k] * k, psum += p->q[k] * perr[k];
+	printf("\t%.1f\t%.3f", (double)qsum/sum, psum/sum);
+	for (k = 0; k <= 93; ++k)
+		if (allq[k] > 0) printf("\t%.2f", 100. * p->q[k] / sum);
+	putchar('\n');
+}
+
+int stk_fqchk(int argc, char *argv[])
+{
+	gzFile fp;
+	kseq_t *seq;
+	int i, k, max_len = 0, min_len = 0x7fffffff, max_alloc = 0, offset = 33, n_diffQ = 0;
+	int64_t tot_len = 0, n = 0;
+	double perr[94];
+	posstat_t all, *pos = 0;
+
+	if (argc == 1) {
+		fprintf(stderr, "Usage: seqtk fqchk <in.fq>\n");
+		return 1;
+	}
+	fp = (strcmp(argv[1], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[1], "r");
+	seq = kseq_init(fp);
+	for (k = 0; k <= 93; ++k)
+		perr[k] = pow(10., -.1 * k);
+	perr[0] = perr[1] = perr[2] = perr[3] = .5;
+	while (kseq_read(seq) >= 0) {
+		if (seq->qual.l == 0) continue;
+		++n;
+		tot_len += seq->seq.l;
+		min_len = min_len < seq->seq.l? min_len : seq->seq.l;
+		max_len = max_len > seq->seq.l? max_len : seq->seq.l;
+		if (max_len > max_alloc) {
+			int old_max = max_alloc;
+			max_alloc = max_len;
+			kroundup32(max_alloc);
+			pos = realloc(pos, max_alloc * sizeof(posstat_t));
+			memset(&pos[old_max], 0, (max_alloc - old_max) * sizeof(posstat_t));
+		}
+		for (i = 0; i < seq->qual.l; ++i) {
+			int q = seq->qual.s[i] - offset;
+			int b = seq_nt6_table[(int)seq->seq.s[i]];
+			b = b? b - 1 : 4;
+			q = q < 93? q : 93;
+			++pos[i].q[q];
+			++pos[i].b[b];
+		}
+	}
+	kseq_destroy(seq);
+	gzclose(fp);
+
+	memset(&all, 0, sizeof(posstat_t));
+	for (i = 0; i < max_len; ++i) {
+		for (k = 0; k <= 93; ++k)
+			all.q[k] += pos[i].q[k];
+		for (k = 0; k <= 4; ++k)
+			all.b[k] += pos[i].b[k];
+	}
+	for (k = n_diffQ = 0; k <= 93; ++k)
+		if (all.q[k]) ++n_diffQ;
+	printf("min_len: %d; max_len: %d; avg_len: %.2f; %d distinct quality values\n", min_len, max_len, (double)tot_len/n, n_diffQ);
+	printf("POS\t#bases\t%%A\t%%C\t%%G\t%%T\t%%N\tavgQ\tP_err");
+	for (k = 0; k <= 93; ++k)
+		if (all.q[k] > 0) printf("\t%%Q%d", k);
+	putchar('\n');
+	fqc_aux(&all, 0, all.q, perr);
+	for (i = 0; i < max_len; ++i)
+		fqc_aux(&pos[i], i + 1, all.q, perr);
+	free(pos);
+	return 0;
+}
+
 /* main function */
 static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r68-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r70-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
 	fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
+	fprintf(stderr, "         fqchk     fastq QC (base/quality summary)\n");
 	fprintf(stderr, "         mergepe   interleave two PE FASTA/Q files\n");
 	fprintf(stderr, "         trimfq    trim FASTQ using the Phred algorithm\n\n");
 	fprintf(stderr, "         hety      regional heterozygosity\n");
@@ -1372,6 +1462,7 @@ int main(int argc, char *argv[])
 {
 	if (argc == 1) return usage();
 	if (strcmp(argv[1], "comp") == 0) stk_comp(argc-1, argv+1);
+	else if (strcmp(argv[1], "fqchk") == 0) stk_fqchk(argc-1, argv+1);
 	else if (strcmp(argv[1], "hety") == 0) stk_hety(argc-1, argv+1);
 	else if (strcmp(argv[1], "subseq") == 0) stk_subseq(argc-1, argv+1);
 	else if (strcmp(argv[1], "mutfa") == 0) stk_mutfa(argc-1, argv+1);
