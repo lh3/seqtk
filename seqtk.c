@@ -1364,7 +1364,7 @@ static void fqc_aux(posstat_t *p, int pos, int64_t allq[94], double perr[94])
 		printf("\t%.1f", 100. * p->b[k] / sum);
 	for (k = 0; k <= 93; ++k)
 		qsum += p->q[k] * k, psum += p->q[k] * perr[k];
-	printf("\t%.1f\t%.3f", (double)qsum/sum, psum/sum);
+	printf("\t%.1f\t%.1f", (double)qsum/sum, -4.343*log((psum+1e-6)/(sum+1e-6)));
 	for (k = 0; k <= 93; ++k)
 		if (allq[k] > 0) printf("\t%.2f", 100. * p->q[k] / sum);
 	putchar('\n');
@@ -1423,7 +1423,7 @@ int stk_fqchk(int argc, char *argv[])
 	for (k = n_diffQ = 0; k <= 93; ++k)
 		if (all.q[k]) ++n_diffQ;
 	printf("min_len: %d; max_len: %d; avg_len: %.2f; %d distinct quality values\n", min_len, max_len, (double)tot_len/n, n_diffQ);
-	printf("POS\t#bases\t%%A\t%%C\t%%G\t%%T\t%%N\tavgQ\tP_err");
+	printf("POS\t#bases\t%%A\t%%C\t%%G\t%%T\t%%N\tavgQ\tQ");
 	for (k = 0; k <= 93; ++k)
 		if (all.q[k] > 0) printf("\t%%Q%d", k);
 	putchar('\n');
@@ -1439,7 +1439,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r70-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r71-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
