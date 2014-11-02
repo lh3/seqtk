@@ -1351,10 +1351,10 @@ typedef struct {
 	int64_t q[94], b[5];
 } posstat_t;
 
-static void fqc_aux(posstat_t *p, int pos, int64_t allq[94], double perr[94])
+static void fqc_aux(posstat_t *p, int pos, int64_t allq[94], double perr[94], int qthres)
 {
 	int k;
-	int64_t sum = 0, qsum = 0;
+	int64_t sum = 0, qsum = 0, sum_low = 0;
 	double psum = 0;
 	if (pos <= 0) printf("ALL");
 	else printf("%d", pos);
@@ -1362,11 +1362,15 @@ static void fqc_aux(posstat_t *p, int pos, int64_t allq[94], double perr[94])
 	printf("\t%lld", (long long)sum);
 	for (k = 0; k <= 4; ++k)
 		printf("\t%.1f", 100. * p->b[k] / sum);
-	for (k = 0; k <= 93; ++k)
+	for (k = 0; k <= 93; ++k) {
 		qsum += p->q[k] * k, psum += p->q[k] * perr[k];
+		if (k < qthres) sum_low += p->q[k];
+	}
 	printf("\t%.1f\t%.1f", (double)qsum/sum, -4.343*log((psum+1e-6)/(sum+1e-6)));
-	for (k = 0; k <= 93; ++k)
-		if (allq[k] > 0) printf("\t%.2f", 100. * p->q[k] / sum);
+	if (qthres <= 0) {
+		for (k = 0; k <= 93; ++k)
+			if (allq[k] > 0) printf("\t%.2f", 100. * p->q[k] / sum);
+	} else printf("\t%.1f\t%.1f", 100. * sum_low / sum, 100. * (sum - sum_low) / sum);
 	putchar('\n');
 }
 
@@ -1374,16 +1378,20 @@ int stk_fqchk(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int i, k, max_len = 0, min_len = 0x7fffffff, max_alloc = 0, offset = 33, n_diffQ = 0;
+	int i, c, k, max_len = 0, min_len = 0x7fffffff, max_alloc = 0, offset = 33, n_diffQ = 0, qthres = 20;
 	int64_t tot_len = 0, n = 0;
 	double perr[94];
 	posstat_t all, *pos = 0;
 
-	if (argc == 1) {
-		fprintf(stderr, "Usage: seqtk fqchk <in.fq>\n");
+	while ((c = getopt(argc, argv, "q:")) >= 0)
+		if (c == 'q') qthres = atoi(optarg);
+
+	if (optind == argc) {
+		fprintf(stderr, "Usage: seqtk fqchk [-q %d] <in.fq>\n", qthres);
+		fprintf(stderr, "Note: use -q0 to get the distribution of all quality values\n");
 		return 1;
 	}
-	fp = (strcmp(argv[1], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[1], "r");
+	fp = (strcmp(argv[optind], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[optind], "r");
 	seq = kseq_init(fp);
 	for (k = 0; k <= 93; ++k)
 		perr[k] = pow(10., -.1 * k);
@@ -1423,13 +1431,15 @@ int stk_fqchk(int argc, char *argv[])
 	for (k = n_diffQ = 0; k <= 93; ++k)
 		if (all.q[k]) ++n_diffQ;
 	printf("min_len: %d; max_len: %d; avg_len: %.2f; %d distinct quality values\n", min_len, max_len, (double)tot_len/n, n_diffQ);
-	printf("POS\t#bases\t%%A\t%%C\t%%G\t%%T\t%%N\tavgQ\tQ");
-	for (k = 0; k <= 93; ++k)
-		if (all.q[k] > 0) printf("\t%%Q%d", k);
+	printf("POS\t#bases\t%%A\t%%C\t%%G\t%%T\t%%N\tavgQ\terrQ");
+	if (qthres <= 0) {
+		for (k = 0; k <= 93; ++k)
+			if (all.q[k] > 0) printf("\t%%Q%d", k);
+	} else printf("\t%%low\t%%high");
 	putchar('\n');
-	fqc_aux(&all, 0, all.q, perr);
+	fqc_aux(&all, 0, all.q, perr, qthres);
 	for (i = 0; i < max_len; ++i)
-		fqc_aux(&pos[i], i + 1, all.q, perr);
+		fqc_aux(&pos[i], i + 1, all.q, perr, qthres);
 	free(pos);
 	return 0;
 }
@@ -1439,7 +1449,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r71-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r72-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
