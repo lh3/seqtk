@@ -345,23 +345,21 @@ int stk_comp(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int l, c, upper_only = 0, from_stdin;
+	int l, c, upper_only = 0;
 	reghash_t *h = 0;
 	reglist_t dummy;
+
 	while ((c = getopt(argc, argv, "ur:")) >= 0) {
 		switch (c) {
 			case 'u': upper_only = 1; break;
 			case 'r': h = stk_reg_read(optarg); break;
 		}
 	}
-	from_stdin = !isatty(fileno(stdin));
-	if (argc == optind && !from_stdin) {
+	if (argc == optind && isatty(fileno(stdin))) {
 		fprintf(stderr, "Usage:  seqtk comp [-u] [-r in.bed] <in.fa>\n\n");
 		fprintf(stderr, "Output format: chr, length, #A, #C, #G, #T, #2, #3, #4, #CpG, #tv, #ts, #CpG-ts\n");
 		return 1;
 	}
-	if (from_stdin && strcmp(argv[optind], "-") != 0)
-		fprintf(stderr, "[W::%s] stdin is available; the input file is ignored!\n", __func__);
 	fp = optind < argc && strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
 	dummy.n= dummy.m = 1; dummy.a = calloc(1, 8);
@@ -1107,7 +1105,7 @@ int stk_seq(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0, from_stdin, max_q = 255;
+	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0, max_q = 255;
 	unsigned i, line_len = 0;
 	int64_t n_seqs = 0;
 	double frac = 1.;
@@ -1137,8 +1135,7 @@ int stk_seq(int argc, char *argv[])
 		}
 	}
 	if (kr == 0) kr = kr_srand(11);
-	from_stdin = !isatty(fileno(stdin));
-	if (argc == optind && !from_stdin) {
+	if (argc == optind && isatty(fileno(stdin))) {
 		fprintf(stderr, "\n");
 		fprintf(stderr, "Usage:   seqtk seq [options] <in.fq>|<in.fa>\n\n");
 		fprintf(stderr, "Options: -q INT    mask bases with quality lower than INT [0]\n");
@@ -1252,15 +1249,11 @@ int stk_dropse(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq, last;
-	int from_stdin;
 
-	from_stdin = !isatty(fileno(stdin));
-	if (argc == 1 && !from_stdin) {
+	if (argc == 1 && isatty(fileno(stdin))) {
 		fprintf(stderr, "Usage: seqtk dropSE <in.fq>\n");
 		return 1;
 	}
-	if (from_stdin && argc != 1 && strcmp(argv[1], "-") != 0)
-		fprintf(stderr, "[W::%s] stdin is available; the input file is ignored!\n", __func__);
 	fp = argc > 1 && strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
 
@@ -1449,7 +1442,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r73-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r74-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
