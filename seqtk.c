@@ -1112,7 +1112,7 @@ int stk_seq(int argc, char *argv[])
 	khash_t(reg) *h = 0;
 	krand_t *kr = 0;
 
-	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:cVX:")) >= 0) {
+	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:cVUX:")) >= 0) {
 		switch (c) {
 			case 'a':
 			case 'A': flag |= 1; break;
@@ -1123,6 +1123,7 @@ int stk_seq(int argc, char *argv[])
 			case '2': flag |= 32; break;
 			case 'V': flag |= 64; break;
 			case 'N': flag |= 128; break;
+			case 'U': flag |= 256; break;
 			case 'M': h = stk_reg_read(optarg); break;
 			case 'n': mask_chr = *optarg; break;
 			case 'Q': qual_shift = atoi(optarg); break;
@@ -1155,6 +1156,7 @@ int stk_seq(int argc, char *argv[])
 		fprintf(stderr, "         -1        output the 2n-1 reads only\n");
 		fprintf(stderr, "         -2        output the 2n reads only\n");
 		fprintf(stderr, "         -V        shift quality by '(-Q) - 33'\n");
+		fprintf(stderr, "         -U        convert all bases to uppercases\n");
 		fprintf(stderr, "\n");
 		free(kr);
 		return 1;
@@ -1182,6 +1184,9 @@ int stk_seq(int argc, char *argv[])
 						seq->seq.s[i] = tolower(seq->seq.s[i]);
 			}
 		}
+		if (flag & 256)
+			for (i = 0; i < seq->seq.l; ++i)
+				seq->seq.s[i] = toupper(seq->seq.s[i]);
 		if (flag & 1) seq->qual.l = 0;
 		if (flag & 2) seq->comment.l = 0;
 		if (h) stk_mask(seq, h, flag&8, mask_chr); // masking
@@ -1442,7 +1447,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r75-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r76-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
