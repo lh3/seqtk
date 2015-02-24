@@ -1487,7 +1487,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "seq") == 0) stk_seq(argc-1, argv+1);
 	else if (strcmp(argv[1], "kfreq") == 0) stk_kfreq(argc-1, argv+1);
 	else {
-		fprintf(stderr, "[main] unrecognized commad '%s'. Abort!\n", argv[1]);
+		fprintf(stderr, "[main] unrecognized command '%s'. Abort!\n", argv[1]);
 		return 1;
 	}
 	return 0;
