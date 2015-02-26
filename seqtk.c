@@ -183,10 +183,13 @@ static void stk_printstr(const kstring_t *s, unsigned line_len)
 	}
 }
 
-void stk_printseq(const kseq_t *s, int line_len)
+static inline void stk_printseq_renamed(const kseq_t *s, int line_len, const char *prefix, int64_t n)
 {
 	putchar(s->qual.l? '@' : '>');
-	fputs(s->name.s, stdout);
+	if (n >= 0) {
+		if (prefix) fputs(prefix, stdout);
+		printf("%lld", (long long)n);
+	} else fputs(s->name.s, stdout);
 	if (s->comment.l) {
 		putchar(' '); fputs(s->comment.s, stdout);
 	}
@@ -195,6 +198,11 @@ void stk_printseq(const kseq_t *s, int line_len)
 		putchar('+');
 		stk_printstr(&s->qual, line_len);
 	}
+}
+
+inline void stk_printseq(const kseq_t *s, int line_len)
+{
+	stk_printseq_renamed(s, line_len, 0, -1);
 }
 
 /* 
@@ -1256,7 +1264,7 @@ int stk_dropse(int argc, char *argv[])
 	kseq_t *seq, last;
 
 	if (argc == 1 && isatty(fileno(stdin))) {
-		fprintf(stderr, "Usage: seqtk dropSE <in.fq>\n");
+		fprintf(stderr, "Usage: seqtk dropse <in.fq>\n");
 		return 1;
 	}
 	fp = argc > 1 && strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
@@ -1285,6 +1293,49 @@ int stk_dropse(int argc, char *argv[])
 	return 0;
 }
 
+int stk_rename(int argc, char *argv[])
+{
+	gzFile fp;
+	kseq_t *seq, last;
+	char *prefix = 0;
+	uint64_t n = 1;
+
+	if (argc == 1 && isatty(fileno(stdin))) {
+		fprintf(stderr, "Usage: seqtk rename <in.fq> [prefix]\n");
+		return 1;
+	}
+	fp = argc > 1 && strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
+	seq = kseq_init(fp);
+	if (argc > 2) prefix = argv[2];
+
+	memset(&last, 0, sizeof(kseq_t));
+	while (kseq_read(seq) >= 0) {
+		if (last.name.l) {
+			kstring_t *p = &last.name, *q = &seq->name;
+			int is_diff;
+			if (p->l == q->l) {
+				int l = (p->l > 2 && p->s[p->l-2] == '/' && q->s[q->l-2] == '/' && isdigit(p->s[p->l-1]) && isdigit(q->s[q->l-1]))? p->l - 2 : p->l;
+				is_diff = strncmp(p->s, q->s, l);
+			} else is_diff = 1;
+			if (!is_diff) {
+				stk_printseq_renamed(&last, 0, prefix, n);
+				stk_printseq_renamed(seq,   0, prefix, n);
+				last.name.l = 0;
+				++n;
+			} else {
+				stk_printseq_renamed(&last, 0, prefix, n);
+				++n;
+				cpy_kseq(&last, seq);
+			}
+		} else cpy_kseq(&last, seq);
+	}
+	if (last.name.l) stk_printseq_renamed(&last, 0, prefix, n);
+
+	kseq_destroy(seq);
+	gzclose(fp);
+	// free last!
+	return 0;
+}
 
 int stk_kfreq(int argc, char *argv[])
 {
@@ -1447,7 +1498,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r76-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r77-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
@@ -1459,6 +1510,7 @@ static int usage()
 	fprintf(stderr, "         mutfa     point mutate FASTA at specified positions\n");
 	fprintf(stderr, "         mergefa   merge two FASTA/Q files\n");
 	fprintf(stderr, "         dropse    drop unpaired from interleaved PE FASTA/Q\n");
+	fprintf(stderr, "         rename    rename sequence names\n");
 	fprintf(stderr, "         randbase  choose a random base from hets\n");
 	fprintf(stderr, "         cutN      cut sequence at long N\n");
 	fprintf(stderr, "         listhet   extract the position of each het\n");
@@ -1486,6 +1538,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "sample") == 0) stk_sample(argc-1, argv+1);
 	else if (strcmp(argv[1], "seq") == 0) stk_seq(argc-1, argv+1);
 	else if (strcmp(argv[1], "kfreq") == 0) stk_kfreq(argc-1, argv+1);
+	else if (strcmp(argv[1], "rename") == 0) stk_rename(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[main] unrecognized commad '%s'. Abort!\n", argv[1]);
 		return 1;
