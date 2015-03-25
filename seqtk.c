@@ -1237,26 +1237,22 @@ int stk_gc(int argc, char *argv[])
 	gzFile fp;
 	kseq_t *seq;
 
-	while ((c = getopt(argc, argv, "x:f:l:")) >= 0) {
+	while ((c = getopt(argc, argv, "wx:f:l:")) >= 0) {
 		if (c == 'x') xdropoff = atof(optarg);
+		else if (c == 'w') is_at = 1;
 		else if (c == 'f') frac = atof(optarg);
 		else if (c == 'l') min_l = atoi(optarg);
 	}
 	if (optind + 1 > argc) {
-		fprintf(stderr, "Usage: seqtk gc [-x %.1f] [-f %.1f] [-l %d] <in.fa>\n", xdropoff, frac, min_l);
+		fprintf(stderr, "Usage: seqtk gc [options] <in.fa>\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -w         identify high-AT regions\n");
+		fprintf(stderr, "  -f FLOAT   min GC fraction (or AT fraction for -w) [%.2f]\n", frac);
+		fprintf(stderr, "  -l INT     min region length to output [%d]\n", min_l);
+		fprintf(stderr, "  -x FLOAT   X-dropoff [%.1f]\n", xdropoff);
 		return 1;
 	}
-	if (frac > 0.5f && frac < 1.0f) {
-		fprintf(stderr, "[M::%s] identifying high-GC regions...\n", __func__);
-		q = (1.0f - frac) / frac;
-	} else if (frac < 0.5f && frac > 0.0f) {
-		fprintf(stderr, "[M::%s] identifying low-GC regions...\n", __func__);
-		is_at = 1;
-		q = frac / (1.0f - frac);
-	} else {
-		fprintf(stderr, "[E::%s] 'gc' does not work when f=%.2f\n", __func__, frac);
-		return 1;
-	}
+	q = (1.0f - frac) / frac;
 
 	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
 	seq = kseq_init(fp);
@@ -1559,7 +1555,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r81-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r82-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
