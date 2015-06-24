@@ -54,3 +54,6 @@ Seqtk Examples
 
         seqtk trimfq -b 5 -e 10 in.fa > out.fa
 
+License
+-------
+Seqtk is released under an MIT license. See LICENSE for further details.
