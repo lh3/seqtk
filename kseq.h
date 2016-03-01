@@ -151,6 +151,7 @@ typedef struct __kstring_t {
 #define __KSEQ_BASIC(SCOPE, type_t)										\
 	SCOPE kseq_t *kseq_init(type_t fd)									\
 	{																	\
+		if (!fd) return NULL;											\
 		kseq_t *s = (kseq_t*)calloc(1, sizeof(kseq_t));					\
 		s->f = ks_init(fd);												\
 		return s;														\
@@ -171,6 +172,7 @@ typedef struct __kstring_t {
 #define __KSEQ_READ(SCOPE) \
 	SCOPE int kseq_read(kseq_t *seq) \
 	{ \
+		if (!seq) return -1; \
 		int c; \
 		kstream_t *ks = seq->f; \
 		if (seq->last_char == 0) { /* then jump to the next header line */ \
