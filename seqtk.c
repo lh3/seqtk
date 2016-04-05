@@ -566,7 +566,7 @@ int stk_subseq(int argc, char *argv[])
 						if (beg) printf(":%d", beg+1);
 					} else printf(":%d-%d", beg+1, end);
 				}
-				if (seq->comment.l) printf("\t%s", seq->comment.s);
+				if (seq->comment.l) printf(" %s", seq->comment.s);
 			} else printf("%s\t%d\t", seq->name.s, beg + 1);
 			if (end > seq->seq.l) end = seq->seq.l;
 			for (j = 0; j < end - beg; ++j) {
@@ -1555,7 +1555,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.0-r82-dirty\n\n");
+	fprintf(stderr, "Version: 1.0-r85-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
