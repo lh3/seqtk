@@ -8,6 +8,11 @@ optionally compressed by gzip.
 Seqtk Examples
 --------------
 
+* Installation:
+
+		git clone https://github.com/lh3/seqtk.git;
+		cd seqtk; make;  # then copy seqtk to $PATH
+
 * Convert FASTQ to FASTA:
 
         seqtk seq -a in.fq.gz > out.fa
