@@ -3,15 +3,15 @@ Introduction
 
 Seqtk is a fast and lightweight tool for processing sequences in the FASTA or
 FASTQ format. It seamlessly parses both FASTA and FASTQ files which can also be
-optionally compressed by gzip.
+optionally compressed by gzip. To install `seqtk`,
+```sh
+git clone https://github.com/lh3/seqtk.git;
+cd seqtk; make
+```
+The only library dependency is zlib.
 
 Seqtk Examples
 --------------
-
-* Installation:
-
-		git clone https://github.com/lh3/seqtk.git;
-		cd seqtk; make;  # then copy seqtk to $PATH
 
 * Convert FASTQ to FASTA:
 
