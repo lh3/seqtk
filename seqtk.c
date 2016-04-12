@@ -311,7 +311,7 @@ int stk_trimfq(int argc, char *argv[])
 		if (left || right || fixed_len > 0) {
 			beg = left; end = seq->seq.l - right;
 			if (beg >= end) beg = end = 0;
-			if (end - beg > fixed_len) end = beg + fixed_len;
+			if (fixed_len > 0 && end - beg > fixed_len) end = beg + fixed_len;
 		} else if (seq->qual.l > min_len) {
 			for (i = 0, beg = tmp = 0, end = seq->qual.l, s = max = 0.; i < seq->qual.l; ++i) {
 				int q = seq->qual.s[i];
@@ -1558,7 +1558,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.1-r91\n\n");
+	fprintf(stderr, "Version: 1.1-r92-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
