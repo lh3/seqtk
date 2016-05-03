@@ -697,8 +697,9 @@ int stk_famask(int argc, char *argv[])
 {
 	gzFile fp[2];
 	kseq_t *seq[2];
-	int i, l;
-	if (argc < 3) {
+	int i, l, c;
+	while ((c = getopt(argc, argv, "")) >= 0);
+	if (argc - optind < 2) {
 		fprintf(stderr, "Usage: seqtk famask <src.fa> <mask.fa>\n");
 		return 1;
 	}
@@ -1558,7 +1559,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.1-r92-dirty\n\n");
+	fprintf(stderr, "Version: 1.1-r93-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
@@ -1570,6 +1571,7 @@ static int usage()
 	fprintf(stderr, "         gc        identify high- or low-GC regions\n");
 	fprintf(stderr, "         mutfa     point mutate FASTA at specified positions\n");
 	fprintf(stderr, "         mergefa   merge two FASTA/Q files\n");
+	fprintf(stderr, "         famask    apply a X-coded FASTA to a source FASTA\n");
 	fprintf(stderr, "         dropse    drop unpaired from interleaved PE FASTA/Q\n");
 	fprintf(stderr, "         rename    rename sequence names\n");
 	fprintf(stderr, "         randbase  choose a random base from hets\n");
