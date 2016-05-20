@@ -1124,7 +1124,7 @@ int stk_seq(int argc, char *argv[])
 	khash_t(reg) *h = 0;
 	krand_t *kr = 0;
 
-	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:cVUX:")) >= 0) {
+	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:cVUX:S")) >= 0) {
 		switch (c) {
 			case 'a':
 			case 'A': flag |= 1; break;
@@ -1136,6 +1136,7 @@ int stk_seq(int argc, char *argv[])
 			case 'V': flag |= 64; break;
 			case 'N': flag |= 128; break;
 			case 'U': flag |= 256; break;
+			case 'S': flag |= 512; break;
 			case 'M': h = stk_reg_read(optarg); break;
 			case 'n': mask_chr = *optarg; break;
 			case 'Q': qual_shift = atoi(optarg); break;
@@ -1169,6 +1170,7 @@ int stk_seq(int argc, char *argv[])
 		fprintf(stderr, "         -2        output the 2n reads only\n");
 		fprintf(stderr, "         -V        shift quality by '(-Q) - 33'\n");
 		fprintf(stderr, "         -U        convert all bases to uppercases\n");
+		fprintf(stderr, "         -S        strip of white spaces in sequences\n");
 		fprintf(stderr, "\n");
 		free(kr);
 		return 1;
@@ -1185,6 +1187,19 @@ int stk_seq(int argc, char *argv[])
 			if ((flag&16) && (n_seqs&1) == 0) continue;
 			if ((flag&32) && (n_seqs&1) == 1) continue;
 		}
+		if (flag & 512) { // option -S: squeeze out white spaces
+			int k;
+			if (seq->qual.l) {
+				for (i = k = 0; i < seq->seq.l; ++i)
+					if (!isspace(seq->seq.s[i]))
+						seq->qual.s[k++] = seq->qual.s[i];
+				seq->qual.l = k;
+			}
+			for (i = k = 0; i < seq->seq.l; ++i)
+				if (!isspace(seq->seq.s[i]))
+					seq->seq.s[k++] = seq->seq.s[i];
+			seq->seq.l = k;
+		}
 		if (seq->qual.l && qual_thres > qual_shift) {
 			if (mask_chr) {
 				for (i = 0; i < seq->seq.l; ++i)
@@ -1196,13 +1211,13 @@ int stk_seq(int argc, char *argv[])
 						seq->seq.s[i] = tolower(seq->seq.s[i]);
 			}
 		}
-		if (flag & 256)
+		if (flag & 256) // option -U: convert to uppercases
 			for (i = 0; i < seq->seq.l; ++i)
 				seq->seq.s[i] = toupper(seq->seq.s[i]);
-		if (flag & 1) seq->qual.l = 0;
-		if (flag & 2) seq->comment.l = 0;
+		if (flag & 1) seq->qual.l = 0; // option -a: fastq -> fasta
+		if (flag & 2) seq->comment.l = 0; // option -C: drop fasta/q comments
 		if (h) stk_mask(seq, h, flag&8, mask_chr); // masking
-		if (flag & 4) { // reverse complement
+		if (flag & 4) { // option -r: reverse complement
 			int c0, c1;
 			for (i = 0; i < seq->seq.l>>1; ++i) { // reverse complement sequence
 				c0 = comp_tab[(int)seq->seq.s[i]];
@@ -1220,7 +1235,7 @@ int stk_seq(int argc, char *argv[])
 		if ((flag & 64) && seq->qual.l && qual_shift != 33)
 			for (i = 0; i < seq->qual.l; ++i)
 				seq->qual.s[i] -= qual_shift - 33;
-		if (flag & 128) {
+		if (flag & 128) { // option -N: drop sequences containing ambiguous bases - Note: this is the last step!
 			for (i = 0; i < seq->seq.l; ++i)
 				if (seq_nt16to4_table[seq_nt16_table[(int)seq->seq.s[i]]] > 3) break;
 			if (i < seq->seq.l) continue;
@@ -1559,7 +1574,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.1-r93-dirty\n\n");
+	fprintf(stderr, "Version: 1.2-r94\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
