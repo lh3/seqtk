@@ -57,9 +57,10 @@ reghash_t *stk_reg_read(const char *fn)
 	int dret;
 	kstring_t *str;
 	// read the list
-	str = calloc(1, sizeof(kstring_t));
 	fp = strcmp(fn, "-")? gzopen(fn, "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) return 0;
 	ks = ks_init(fp);
+	str = calloc(1, sizeof(kstring_t));
 	while (ks_getuntil(ks, 0, str, &dret) >= 0) {
 		int beg = -1, end = -1;
 		reglist_t *p;
@@ -302,6 +303,10 @@ int stk_trimfq(int argc, char *argv[])
 		return 1;
 	}
 	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	seq = kseq_init(fp);
 	for (i = 0; i < 128; ++i)
 		q_int2real[i] = pow(10., -(i - 33) / 10.);
@@ -372,6 +377,10 @@ int stk_comp(int argc, char *argv[])
 		return 1;
 	}
 	fp = optind < argc && strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	seq = kseq_init(fp);
 	dummy.n= dummy.m = 1; dummy.a = calloc(1, 8);
 	while ((l = kseq_read(seq)) >= 0) {
@@ -437,6 +446,10 @@ int stk_randbase(int argc, char *argv[])
 		return 1;
 	}
 	fp = (strcmp(argv[1], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[1], "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	seq = kseq_init(fp);
 	while ((l = kseq_read(seq)) >= 0) {
 		int i;
@@ -489,6 +502,10 @@ int stk_hety(int argc, char *argv[])
 		}
 	}
 	fp = (strcmp(argv[optind], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[optind], "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	seq = kseq_init(fp);
 	win_step = win_size / n_start;
 	buf = calloc(win_size, 1);
@@ -547,8 +564,16 @@ int stk_subseq(int argc, char *argv[])
 		return 1;
 	}
 	h = stk_reg_read(argv[optind+1]);
+	if (h == 0) {
+		fprintf(stderr, "[E::%s] failed to read the list of regions in file '%s'\n", __func__, argv[optind+1]);
+		return 1;
+	}
 	// subseq
 	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream\n", __func__);
+		return 1;
+	}
 	seq = kseq_init(fp);
 	while ((l = kseq_read(seq)) >= 0) {
 		reglist_t *p;
@@ -625,6 +650,10 @@ int stk_mergefa(int argc, char *argv[])
 	for (i = 0; i < 2; ++i) {
 		fp[i] = strcmp(argv[optind+i], "-")? gzopen(argv[optind+i], "r") : gzdopen(fileno(stdin), "r");
 		seq[i] = kseq_init(fp[i]);
+	}
+	if (fp[0] == 0 || fp[1] == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
 	}
 	cnt[0] = cnt[1] = cnt[2] = cnt[3] = cnt[4] = 0;
 	srand48(11);
@@ -707,6 +736,10 @@ int stk_famask(int argc, char *argv[])
 		fp[i] = strcmp(argv[optind+i], "-")? gzopen(argv[optind+i], "r") : gzdopen(fileno(stdin), "r");
 		seq[i] = kseq_init(fp[i]);
 	}
+	if (fp[0] == 0 || fp[1] == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	while (kseq_read(seq[0]) >= 0) {
 		int min_l, c[2];
 		kseq_read(seq[1]);
@@ -746,6 +779,10 @@ int stk_mutfa(int argc, char *argv[])
 	// read the list
 	str = calloc(1, sizeof(kstring_t));
 	fp = strcmp(argv[2], "-")? gzopen(argv[2], "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	ks = ks_init(fp);
 	while (ks_getuntil(ks, 0, str, &dret) >= 0) {
 		char *s = strdup(str->s);
@@ -775,6 +812,10 @@ int stk_mutfa(int argc, char *argv[])
 	free(str->s); free(str);
 	// mutfa
 	fp = strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	seq = kseq_init(fp);
 	while ((l = kseq_read(seq)) >= 0) {
 		reglist_t *p;
@@ -817,6 +858,10 @@ int stk_listhet(int argc, char *argv[])
 		return 1;
 	}
 	fp = (strcmp(argv[1], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[1], "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	seq = kseq_init(fp);
 	while ((l = kseq_read(seq)) >= 0) {
 		for (i = 0; i < l; ++i) {
@@ -902,6 +947,10 @@ int stk_cutN(int argc, char *argv[])
 		return 1;
 	}
 	fp = (strcmp(argv[optind], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[optind], "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	ks = kseq_init(fp);
 	while ((l = kseq_read(ks)) >= 0) {
 		int k = 0, begin = 0, end = 0;
@@ -930,6 +979,10 @@ int stk_hrun(int argc, char *argv[])
 	}
 	if (argc == optind + 2) min_len = atoi(argv[optind+1]);
 	fp = (strcmp(argv[optind], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[optind], "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	ks = kseq_init(fp);
 	while (kseq_read(ks) >= 0) {
 		c = ks->seq.s[0]; l = 1; beg = 0;
@@ -1006,6 +1059,10 @@ int stk_sample(int argc, char *argv[])
 		}
 
 		fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
+		if (fp == 0) {
+			fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+			return 1;
+		}
 		seq = kseq_init(fp);
 		n_seqs = 0;
 		while (kseq_read(seq) >= 0) {
@@ -1037,6 +1094,10 @@ int stk_sample(int argc, char *argv[])
 		buf = malloc(num * 8);
 		for (i = 0; i < num; ++i) buf[i] = UINT64_MAX;
 		fp = gzopen(argv[optind], "r");
+		if (fp == 0) {
+			fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+			return 1;
+		}
 		seq = kseq_init(fp);
 		n_seqs = 0;
 		while (kseq_read(seq) >= 0) {
@@ -1177,6 +1238,10 @@ int stk_seq(int argc, char *argv[])
 	}
 	if (line_len == 0) line_len = UINT_MAX;
 	fp = optind < argc && strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	seq = kseq_init(fp);
 	qual_thres += qual_shift;
 	while (kseq_read(seq) >= 0) {
@@ -1274,6 +1339,10 @@ int stk_gc(int argc, char *argv[])
 	q = (1.0f - frac) / frac;
 
 	fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	seq = kseq_init(fp);
 	while (kseq_read(seq) >= 0) {
 		int i, start = 0, max_i = 0, n_hits = 0, start_hits = 0, max_hits = 0;
@@ -1317,6 +1386,10 @@ int stk_mergepe(int argc, char *argv[])
 	}
 	fp1 = strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
 	fp2 = strcmp(argv[2], "-")? gzopen(argv[2], "r") : gzdopen(fileno(stdin), "r");
+	if (fp1 == 0 || fp2 == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	seq[0] = kseq_init(fp1);
 	seq[1] = kseq_init(fp2);
 	while (kseq_read(seq[0]) >= 0) {
@@ -1344,6 +1417,10 @@ int stk_dropse(int argc, char *argv[])
 		return 1;
 	}
 	fp = argc > 1 && strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	seq = kseq_init(fp);
 
 	memset(&last, 0, sizeof(kseq_t));
@@ -1381,6 +1458,10 @@ int stk_rename(int argc, char *argv[])
 		return 1;
 	}
 	fp = argc > 1 && strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	seq = kseq_init(fp);
 	if (argc > 2) prefix = argv[2];
 
@@ -1444,6 +1525,10 @@ int stk_kfreq(int argc, char *argv[])
 	}
 
 	fp = argc == 2 || strcmp(argv[2], "-") == 0? gzdopen(fileno(stdin), "r") : gzopen(argv[2], "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	ks = kseq_init(fp);
 	while (kseq_read(ks) >= 0) {
 		int k, x[2], cnt[2], cnt_nei[2], which;
@@ -1517,6 +1602,10 @@ int stk_fqchk(int argc, char *argv[])
 		return 1;
 	}
 	fp = (strcmp(argv[optind], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[optind], "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
 	seq = kseq_init(fp);
 	for (k = 0; k <= 93; ++k)
 		perr[k] = pow(10., -.1 * k);
@@ -1574,7 +1663,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.2-r94\n\n");
+	fprintf(stderr, "Version: 1.2-r95-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
