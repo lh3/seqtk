@@ -1,6 +1,6 @@
 /* The MIT License
 
-   Copyright (c) 20082-2012 by Heng Li <lh3@me.com>
+   Copyright (c) 2008-2016 Broad Institute
 
    Permission is hereby granted, free of charge, to any person obtaining
    a copy of this software and associated documentation files (the
