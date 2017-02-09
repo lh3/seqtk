@@ -36,6 +36,7 @@
 #include <math.h>
 
 #include "kseq.h"
+#include "version.h"
 KSEQ_INIT(gzFile, gzread)
 
 typedef struct {
@@ -1663,7 +1664,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.2-r95-dirty\n\n");
+	fprintf(stderr, "Version: "SEQTKVERSION"\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
