@@ -197,14 +197,14 @@ typedef struct __kstring_t {
 			ks_getuntil2(ks, KS_SEP_LINE, &seq->seq, 0, 1); /* read the rest of the line */ \
 		} \
 		if (c == '>' || c == '@') seq->last_char = c; /* the first header char has been read */ \
-		if (c == '@') seq->is_fastq = 1; \
 		if (seq->seq.l + 1 >= seq->seq.m) { /* seq->seq.s[seq->seq.l] below may be out of boundary */ \
 			seq->seq.m = seq->seq.l + 2; \
 			kroundup32(seq->seq.m); /* rounded to the next closest 2^k */ \
 			seq->seq.s = (char*)realloc(seq->seq.s, seq->seq.m); \
 		} \
 		seq->seq.s[seq->seq.l] = 0;	/* null terminated string */ \
-		if (c != '+') return seq->seq.l; /* FASTA */ \
+		seq->is_fastq = (c == '+'); \
+		if (!seq->is_fastq) return seq->seq.l; /* FASTA */ \
 		if (seq->qual.m < seq->seq.m) {	/* allocate memory for qual in case insufficient */ \
 			seq->qual.m = seq->seq.m; \
 			seq->qual.s = (char*)realloc(seq->qual.s, seq->qual.m); \

@@ -281,15 +281,14 @@ int stk_trimfq(int argc, char *argv[])
 	gzFile fp;
 	kseq_t *seq;
 	double param = 0.05, q_int2real[128];
-	int i, c, min_len = 30, left = 0, right = 0, fixed_len = -1, force_fq = 0;
-	while ((c = getopt(argc, argv, "l:q:b:e:L:Q")) >= 0) {
+	int i, c, min_len = 30, left = 0, right = 0, fixed_len = -1;
+	while ((c = getopt(argc, argv, "l:q:b:e:L:")) >= 0) {
 		switch (c) {
 			case 'q': param = atof(optarg); break;
 			case 'l': min_len = atoi(optarg); break;
 			case 'b': left = atoi(optarg); break;
 			case 'e': right = atoi(optarg); break;
 			case 'L': fixed_len = atoi(optarg); break;
-			case 'Q': force_fq = 1; break;
 		}
 	}
 	if (optind == argc) {
@@ -343,12 +342,12 @@ int stk_trimfq(int argc, char *argv[])
 				end = beg + min_len;
 			}
 		} else beg = 0, end = seq->seq.l;
-		putchar(force_fq || seq->qual.l? '@' : '>'); fputs(seq->name.s, stdout); 
+		putchar(seq->is_fastq? '@' : '>'); fputs(seq->name.s, stdout); 
 		if (seq->comment.l) {
 			putchar(' '); puts(seq->comment.s);
 		} else putchar('\n');
 		fwrite(seq->seq.s + beg, 1, end - beg, stdout); putchar('\n');
-		if (force_fq || seq->qual.l) {
+		if (seq->is_fastq) {
 			puts("+");
 			fwrite(seq->qual.s + beg, 1, end - beg, stdout); putchar('\n');
 		}
@@ -1665,7 +1664,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.2-r98-dirty\n\n");
+	fprintf(stderr, "Version: 1.2-r101-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
