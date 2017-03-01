@@ -590,6 +590,9 @@ int stk_subseq(int argc, char *argv[])
 			if (end > seq->seq.l) end = seq->seq.l;
 			if (is_tab == 0) {
 				printf("%c%s", seq->qual.l == seq->seq.l? '@' : '>', seq->name.s);
+				if (seq->comment.l) {
+					putchar(' '); fputs(seq->comment.s, stdout);
+				}
 				if (beg > 0 || (int)p->a[i] != INT_MAX) {
 					if (end == INT_MAX) {
 						if (beg) printf(":%d", beg+1);
