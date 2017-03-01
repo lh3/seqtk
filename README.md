@@ -10,6 +10,20 @@ cd seqtk; make
 ```
 The only library dependency is zlib.
 
+Installation
+--------------
+To install Seqtk:
+* Clone this repository to your computer: 
+```
+ git clone https://github.com/lh3/seqtk.git
+```
+* Change into this directory and compile the program using gnumake:
+```
+ cd seqtk/
+ make
+```
+* Now Seqtk is compiled and ready to use. 
+
 Seqtk Examples
 --------------
 
