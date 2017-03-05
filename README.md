@@ -3,7 +3,12 @@ Introduction
 
 Seqtk is a fast and lightweight tool for processing sequences in the FASTA or
 FASTQ format. It seamlessly parses both FASTA and FASTQ files which can also be
-optionally compressed by gzip.
+optionally compressed by gzip. To install `seqtk`,
+```sh
+git clone https://github.com/lh3/seqtk.git;
+cd seqtk; make
+```
+The only library dependency is zlib.
 
 Seqtk Examples
 --------------
@@ -53,24 +58,4 @@ Seqtk Examples
 * Trim 5bp from the left end of each read and 10bp from the right end:
 
         seqtk trimfq -b 5 -e 10 in.fa > out.fa
-
-* Keep first 50bp from the left end of each read by trimming the right end:
-
-        seqtk trimfq -B 50 in.fq > out.fq
-
-* Keep last 50bp from the right end of each read by trimming the left end:
-
-        seqtk trimfq -E 50 in.fq > out.fq
-
-* Trim 5bp from left end and keep next 50bp from left end of each read:
-
-        seqtk trimfq -B 50 -b 5 in.fq > out.fq
-
-* Trim 5bp from right end and keep the 50bp from right end of each read:
-
-        seqtk trimfq -E 50 -e 5 in.fq > out.fq
-
-* Trim 5bp from right end and keep the 50bp from right end of each read and if trimmed read length ends up having less the 20bp then the first 20 bp should be kept only:
-
-        seqtk trimfq -E 50 -e 5 -l 20 in.fq > out.fq
 
