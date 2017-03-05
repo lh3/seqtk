@@ -300,7 +300,7 @@ int stk_trimfq(int argc, char *argv[])
 		fprintf(stderr, "         -b INT      trim INT bp from left (non-zero to disable -q/-B) [0]\n");
 		fprintf(stderr, "         -e INT      trim INT bp from right (non-zero to disable -q/-E) [0]\n");
 		fprintf(stderr, "         -B INT      keep first INT bp from left (non-zero to disable -q/-e/-E) [%d]\n", left_keep);
-		fprintf(stderr, "         -E INT      keep last INT bp from right (non-zero to disable -q/-b/-B) [%d]\n", right_keep);
+		fprintf(stderr, "         -E INT      keep last INT bp from right (non-zero to disable -q/-b/-e/-B) [%d]\n", right_keep);
 //		fprintf(stderr, "         -Q          force FASTQ output\n");
 		fprintf(stderr, "\n");
 		return 1;
