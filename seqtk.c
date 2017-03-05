@@ -342,6 +342,7 @@ int stk_trimfq(int argc, char *argv[])
 				beg = 0; 
 				end = min_len; 
 				if (end > seq->seq.l) end = seq->seq.l;
+			}
 		} else if (seq->qual.l > min_len && param != 0.) {
 			for (i = 0, beg = tmp = 0, end = seq->qual.l, s = max = 0.; i < seq->qual.l; ++i) {
 				int q = seq->qual.s[i];
