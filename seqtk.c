@@ -277,33 +277,29 @@ krint64_t kr_rand(krand_t *kr)
 
 /* quality based trimming with Mott's algorithm */
 int stk_trimfq(int argc, char *argv[])
-{ 
+{ // FIXME: when a record with zero length will always be treated as a fasta record
 	gzFile fp;
 	kseq_t *seq;
 	double param = 0.05, q_int2real[128];
-	int i, c, min_len = 30, shortest_len = 1, left = 0, right = 0, left_keep = 0, right_keep = 0;
-	while ((c = getopt(argc, argv, "l:s:q:b:e:B:E:")) >= 0) {
+	int i, c, min_len = 30, left = 0, right = 0, fixed_len = -1;
+	while ((c = getopt(argc, argv, "l:q:b:e:L:")) >= 0) {
 		switch (c) {
 			case 'q': param = atof(optarg); break;
 			case 'l': min_len = atoi(optarg); break;
-			case 's': shortest_len = atoi(optarg); break;
 			case 'b': left = atoi(optarg); break;
 			case 'e': right = atoi(optarg); break;
-			case 'B': left_keep = atoi(optarg); break;
-			case 'E': right_keep = atoi(optarg); break;
+			case 'L': fixed_len = atoi(optarg); break;
 		}
 	}
 	if (optind == argc) {
 		fprintf(stderr, "\n");
 		fprintf(stderr, "Usage:   seqtk trimfq [options] <in.fq>\n\n");
-		fprintf(stderr, "Options: -q FLOAT    error rate threshold (disabled by -b/-e/-B/-E) [%.2f]\n", param);
-		fprintf(stderr, "         -l INT      maximally trim down to INT bp (disabled by -b/-e/-B/-E) [%d]\n", min_len);
-		fprintf(stderr, "         -s INT      trimming by -b/-e/-B/-E shall not produce reads shorter then INT bp [%d]\n", shortest_len);
-		fprintf(stderr, "         -b INT      trim INT bp from left (non-zero to disable -q) [0]\n");
-		fprintf(stderr, "         -e INT      trim INT bp from right (non-zero to disable -q) [0]\n");
-		fprintf(stderr, "         -B INT      keep first INT bp from left (non-zero to disable -q/-e/-E) [%d]\n", left_keep);
-		fprintf(stderr, "         -E INT      keep last INT bp from right (non-zero to disable -q/-b/-B) [%d]\n", right_keep);
-//		fprintf(stderr, "         -Q          force FASTQ output\n");
+		fprintf(stderr, "Options: -q FLOAT    error rate threshold (disabled by -b/-e) [%.2f]\n", param);
+		fprintf(stderr, "         -l INT      maximally trim down to INT bp (disabled by -b/-e) [%d]\n", min_len);
+		fprintf(stderr, "         -b INT      trim INT bp from left (non-zero to disable -q/-l) [0]\n");
+		fprintf(stderr, "         -e INT      trim INT bp from right (non-zero to disable -q/-l) [0]\n");
+		fprintf(stderr, "         -L INT      retain at most INT bp from the 5'-end (non-zero to disable -q/-l) [0]\n");
+		fprintf(stderr, "         -Q          force FASTQ output\n");
 		fprintf(stderr, "\n");
 		return 1;
 	}
@@ -318,34 +314,11 @@ int stk_trimfq(int argc, char *argv[])
 	while (kseq_read(seq) >= 0) {
 		int beg, tmp, end;
 		double s, max;
-		if (left_keep) {
-			beg = left; end = left + left_keep;
-			if (seq->seq.l < end) end = seq->seq.l;
-			if (seq->seq.l < beg) beg = seq->seq.l;
-			if (end - beg < shortest_len) { 
-				beg = 0; 
-				end = shortest_len; 
-				if (end > seq->seq.l) end = seq->seq.l;
-			}
-		} else if (right_keep) {
-			beg = seq->seq.l - right_keep - right; end = seq->seq.l - right;
-			if (beg < 0) beg = 0;
-			if (end < 0) end = 0;
-			if (end - beg < shortest_len) { 
-				beg = 0; 
-				end = shortest_len; 
-				if (end > seq->seq.l) end = seq->seq.l;
-			}
-		} else if (left || right) {
+		if (left || right || fixed_len > 0) {
 			beg = left; end = seq->seq.l - right;
-			if (end < 0) end = 0;
-			if (seq->seq.l < beg) beg = seq->seq.l;
-			if (end - beg < shortest_len) { 
-				beg = 0; 
-				end = shortest_len; 
-				if (end > seq->seq.l) end = seq->seq.l;
-			}
-		} else if (seq->qual.l > min_len && param != 0.) {
+			if (beg >= end) beg = end = 0;
+			if (fixed_len > 0 && end - beg > fixed_len) end = beg + fixed_len;
+		} else if (seq->qual.l > min_len) {
 			for (i = 0, beg = tmp = 0, end = seq->qual.l, s = max = 0.; i < seq->qual.l; ++i) {
 				int q = seq->qual.s[i];
 				if (q < 36) q = 36;
@@ -1691,7 +1664,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.2-r101b-dirty\n\n");
+	fprintf(stderr, "Version: 1.2-r101-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
