@@ -575,11 +575,13 @@ int stk_subseq(int argc, char *argv[])
 	khash_t(reg) *h = kh_init(reg);
 	gzFile fp;
 	kseq_t *seq;
-	int l, i, j, c, is_tab = 0, line = 0;
+	int l, i, j, c, is_tab = 0, line = 0, is_exclude = 0;
+	reglist_t dummy;
 	khint_t k;
-	while ((c = getopt(argc, argv, "tl:")) >= 0) {
+	while ((c = getopt(argc, argv, "tel:")) >= 0) {
 		switch (c) {
 		case 't': is_tab = 1; break;
+		case 'e': is_exclude = 1; break;
 		case 'l': line = atoi(optarg); break;
 		}
 	}
@@ -587,6 +589,7 @@ int stk_subseq(int argc, char *argv[])
 		fprintf(stderr, "\n");
 		fprintf(stderr, "Usage:   seqtk subseq [options] <in.fa> <in.bed>|<name.list>\n\n");
 		fprintf(stderr, "Options: -t       TAB delimited output\n");
+		fprintf(stderr, "         -e       exclusion instead of inclusion for sequences from <name.list>\n");
 		fprintf(stderr, "         -l INT   sequence line length [%d]\n\n", line);
 		fprintf(stderr, "Note: Use 'samtools faidx' if only a few regions are intended.\n\n");
 		return 1;
@@ -602,12 +605,19 @@ int stk_subseq(int argc, char *argv[])
 		fprintf(stderr, "[E::%s] failed to open the input file/stream\n", __func__);
 		return 1;
 	}
+	dummy.n= dummy.m = 1; dummy.a = calloc(1, 8);
 	seq = kseq_init(fp);
 	while ((l = kseq_read(seq)) >= 0) {
 		reglist_t *p;
 		k = kh_get(reg, h, seq->name.s);
-		if (k == kh_end(h)) continue;
-		p = &kh_val(h, k);
+		if (is_exclude == 0) {
+			if (k == kh_end(h)) continue;
+    		p = &kh_val(h, k);
+		} else {
+			if (k != kh_end(h)) continue;
+			p = &dummy;
+			dummy.a[0] = INT_MAX;
+		}
 		for (i = 0; i < p->n; ++i) {
 			int beg = p->a[i]>>32, end = p->a[i];
 			if (beg >= seq->seq.l) {
@@ -1691,7 +1701,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.2-r101b-dirty\n\n");
+	fprintf(stderr, "Version: 1.2-r101c-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
