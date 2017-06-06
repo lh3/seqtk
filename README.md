@@ -59,3 +59,6 @@ Seqtk Examples
 
         seqtk trimfq -b 5 -e 10 in.fa > out.fa
 
+* Keep the 50bp from right end of each read by trimming the rest and if the trimmed read length ends up having less the 20bp then the first 20 bp should be kept only:
+  		  
+          seqtk trimfq -E 50 -s 20 in.fq > out.fq
