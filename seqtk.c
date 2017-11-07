@@ -1179,14 +1179,14 @@ int stk_seq(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0, max_q = 255;
+	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0, max_q = 255, fake_qual = -1;
 	unsigned i, line_len = 0;
 	int64_t n_seqs = 0;
 	double frac = 1.;
 	khash_t(reg) *h = 0;
 	krand_t *kr = 0;
 
-	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:cVUX:S")) >= 0) {
+	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:cVUX:SF:")) >= 0) {
 		switch (c) {
 			case 'a':
 			case 'A': flag |= 1; break;
@@ -1208,6 +1208,7 @@ int stk_seq(int argc, char *argv[])
 			case 'L': min_len = atoi(optarg); break;
 			case 's': kr = kr_srand(atol(optarg)); break;
 			case 'f': frac = atof(optarg); break;
+			case 'F': fake_qual = *optarg; break;
 		}
 	}
 	if (kr == 0) kr = kr_srand(11);
@@ -1223,6 +1224,7 @@ int stk_seq(int argc, char *argv[])
 		fprintf(stderr, "         -f FLOAT  sample FLOAT fraction of sequences [1]\n");
 		fprintf(stderr, "         -M FILE   mask regions in BED or name list FILE [null]\n");
 		fprintf(stderr, "         -L INT    drop sequences with length shorter than INT [0]\n");
+		fprintf(stderr, "         -F CHAR   fake FASTQ quality []\n");
 		fprintf(stderr, "         -c        mask complement region (effective with -M)\n");
 		fprintf(stderr, "         -r        reverse complement\n");
 		fprintf(stderr, "         -A        force FASTA output (discard quality)\n");
@@ -1281,6 +1283,15 @@ int stk_seq(int argc, char *argv[])
 			for (i = 0; i < seq->seq.l; ++i)
 				seq->seq.s[i] = toupper(seq->seq.s[i]);
 		if (flag & 1) seq->qual.l = 0; // option -a: fastq -> fasta
+		else if (fake_qual >= 33 && fake_qual <= 127) {
+			if (seq->qual.m < seq->seq.m) {
+				seq->qual.m = seq->seq.m;
+				seq->qual.s = (char*)realloc(seq->qual.s, seq->qual.m);
+			}
+			seq->qual.l = seq->seq.l;
+			memset(seq->qual.s, fake_qual, seq->qual.l);
+			seq->qual.s[seq->qual.l] = 0;
+		}
 		if (flag & 2) seq->comment.l = 0; // option -C: drop fasta/q comments
 		if (h) stk_mask(seq, h, flag&8, mask_chr); // masking
 		if (flag & 4) { // option -r: reverse complement
@@ -1664,7 +1675,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.2-r101-dirty\n\n");
+	fprintf(stderr, "Version: 1.2-r102-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
