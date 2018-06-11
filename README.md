@@ -59,3 +59,8 @@ Seqtk Examples
 
         seqtk trimfq -b 5 -e 10 in.fa > out.fa
 
+* Convert fasta to fastq with fake quality score `I`:
+
+        seqtk seq -F I in.fa > out.fq
+
+
