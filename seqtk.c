@@ -1675,7 +1675,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.2-r103-dirty\n\n");
+	fprintf(stderr, "Version: 1.2-r104-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
@@ -1700,28 +1700,27 @@ static int usage()
 int main(int argc, char *argv[])
 {
 	if (argc == 1) return usage();
-	if (strcmp(argv[1], "comp") == 0) stk_comp(argc-1, argv+1);
-	else if (strcmp(argv[1], "fqchk") == 0) stk_fqchk(argc-1, argv+1);
-	else if (strcmp(argv[1], "hety") == 0) stk_hety(argc-1, argv+1);
-	else if (strcmp(argv[1], "gc") == 0) stk_gc(argc-1, argv+1);
-	else if (strcmp(argv[1], "subseq") == 0) stk_subseq(argc-1, argv+1);
-	else if (strcmp(argv[1], "mutfa") == 0) stk_mutfa(argc-1, argv+1);
-	else if (strcmp(argv[1], "mergefa") == 0) stk_mergefa(argc-1, argv+1);
-	else if (strcmp(argv[1], "mergepe") == 0) stk_mergepe(argc-1, argv+1);
-	else if (strcmp(argv[1], "dropse") == 0) stk_dropse(argc-1, argv+1);
-	else if (strcmp(argv[1], "randbase") == 0) stk_randbase(argc-1, argv+1);
-	else if (strcmp(argv[1], "cutN") == 0) stk_cutN(argc-1, argv+1);
-	else if (strcmp(argv[1], "listhet") == 0) stk_listhet(argc-1, argv+1);
-	else if (strcmp(argv[1], "famask") == 0) stk_famask(argc-1, argv+1);
-	else if (strcmp(argv[1], "trimfq") == 0) stk_trimfq(argc-1, argv+1);
-	else if (strcmp(argv[1], "hrun") == 0) stk_hrun(argc-1, argv+1);
-	else if (strcmp(argv[1], "sample") == 0) stk_sample(argc-1, argv+1);
-	else if (strcmp(argv[1], "seq") == 0) stk_seq(argc-1, argv+1);
-	else if (strcmp(argv[1], "kfreq") == 0) stk_kfreq(argc-1, argv+1);
-	else if (strcmp(argv[1], "rename") == 0) stk_rename(argc-1, argv+1);
+	if (strcmp(argv[1], "comp") == 0) return stk_comp(argc-1, argv+1);
+	else if (strcmp(argv[1], "fqchk") == 0) return stk_fqchk(argc-1, argv+1);
+	else if (strcmp(argv[1], "hety") == 0) return stk_hety(argc-1, argv+1);
+	else if (strcmp(argv[1], "gc") == 0) return stk_gc(argc-1, argv+1);
+	else if (strcmp(argv[1], "subseq") == 0) return stk_subseq(argc-1, argv+1);
+	else if (strcmp(argv[1], "mutfa") == 0) return stk_mutfa(argc-1, argv+1);
+	else if (strcmp(argv[1], "mergefa") == 0) return stk_mergefa(argc-1, argv+1);
+	else if (strcmp(argv[1], "mergepe") == 0) return stk_mergepe(argc-1, argv+1);
+	else if (strcmp(argv[1], "dropse") == 0) return stk_dropse(argc-1, argv+1);
+	else if (strcmp(argv[1], "randbase") == 0) return stk_randbase(argc-1, argv+1);
+	else if (strcmp(argv[1], "cutN") == 0) return stk_cutN(argc-1, argv+1);
+	else if (strcmp(argv[1], "listhet") == 0) return stk_listhet(argc-1, argv+1);
+	else if (strcmp(argv[1], "famask") == 0) return stk_famask(argc-1, argv+1);
+	else if (strcmp(argv[1], "trimfq") == 0) return stk_trimfq(argc-1, argv+1);
+	else if (strcmp(argv[1], "hrun") == 0) return stk_hrun(argc-1, argv+1);
+	else if (strcmp(argv[1], "sample") == 0) return stk_sample(argc-1, argv+1);
+	else if (strcmp(argv[1], "seq") == 0) return stk_seq(argc-1, argv+1);
+	else if (strcmp(argv[1], "kfreq") == 0) return stk_kfreq(argc-1, argv+1);
+	else if (strcmp(argv[1], "rename") == 0) return stk_rename(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[main] unrecognized command '%s'. Abort!\n", argv[1]);
 		return 1;
 	}
-	return 0;
 }
