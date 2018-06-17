@@ -1043,7 +1043,7 @@ int stk_sample(int argc, char *argv[])
 		return 1;
 	}
 	frac = atof(argv[optind+1]);
-	if (frac > 1.) num = (uint64_t)(frac + .499), frac = 0.;
+	if (frac >= 1.0) num = (uint64_t)(frac + .499), frac = 0.;
 	else if (twopass) {
 		fprintf(stderr, "[W::%s] when sampling a fraction, option -2 is ignored.", __func__);
 		twopass = 0;
@@ -1675,7 +1675,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.2-r102-dirty\n\n");
+	fprintf(stderr, "Version: 1.2-r103-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
