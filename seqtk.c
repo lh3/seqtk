@@ -38,16 +38,8 @@
 #include "kseq.h"
 KSEQ_INIT(gzFile, gzread)
 
-typedef struct {
-	int n, m;
-	uint64_t *a;
-} reglist_t;
-
-#include "khash.h"
-KHASH_MAP_INIT_STR(reg, reglist_t)
-KHASH_SET_INIT_INT64(64)
-
-typedef kh_reg_t reghash_t;
+#include "seqtk.h"
+#include "constants.h"
 
 reghash_t *stk_reg_read(const char *fn)
 {
@@ -112,62 +104,6 @@ void stk_reg_destroy(reghash_t *h)
 	kh_destroy(reg, h);
 }
 
-/* constant table */
-
-unsigned char seq_nt16_table[256] = {
-	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15,15,15,
-	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15,15,15,
-	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15 /*'-'*/,15,15,
-	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15,15,15,
-	15, 1,14, 2, 13,15,15, 4, 11,15,15,12, 15, 3,15,15,
-	15,15, 5, 6,  8,15, 7, 9,  0,10,15,15, 15,15,15,15,
-	15, 1,14, 2, 13,15,15, 4, 11,15,15,12, 15, 3,15,15,
-	15,15, 5, 6,  8,15, 7, 9,  0,10,15,15, 15,15,15,15,
-	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15,15,15,
-	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15,15,15,
-	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15,15,15,
-	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15,15,15,
-	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15,15,15,
-	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15,15,15,
-	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15,15,15,
-	15,15,15,15, 15,15,15,15, 15,15,15,15, 15,15,15,15
-};
-
-unsigned char seq_nt6_table[256] = {
-    0, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 1, 5, 2,  5, 5, 5, 3,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 1, 5, 2,  5, 5, 5, 3,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-
-    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5
-};
-
-char *seq_nt16_rev_table = "XACMGRSVTWYHKDBN";
-unsigned char seq_nt16to4_table[] = { 4, 0, 1, 4, 2, 4, 4, 4, 3, 4, 4, 4, 4, 4, 4, 4 };
-unsigned char seq_nt16comp_table[] = { 0, 8, 4, 12, 2, 10, 9, 14, 1, 6, 5, 13, 3, 11, 7, 15 };
-int bitcnt_table[] = { 4, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4 };
-char comp_tab[] = {
-	  0,   1,	2,	 3,	  4,   5,	6,	 7,	  8,   9,  10,	11,	 12,  13,  14,	15,
-	 16,  17,  18,	19,	 20,  21,  22,	23,	 24,  25,  26,	27,	 28,  29,  30,	31,
-	 32,  33,  34,	35,	 36,  37,  38,	39,	 40,  41,  42,	43,	 44,  45,  46,	47,
-	 48,  49,  50,	51,	 52,  53,  54,	55,	 56,  57,  58,	59,	 60,  61,  62,	63,
-	 64, 'T', 'V', 'G', 'H', 'E', 'F', 'C', 'D', 'I', 'J', 'M', 'L', 'K', 'N', 'O',
-	'P', 'Q', 'Y', 'S', 'A', 'A', 'B', 'W', 'X', 'R', 'Z',	91,	 92,  93,  94,	95,
-	 64, 't', 'v', 'g', 'h', 'e', 'f', 'c', 'd', 'i', 'j', 'm', 'l', 'k', 'n', 'o',
-	'p', 'q', 'y', 's', 'a', 'a', 'b', 'w', 'x', 'r', 'z', 123, 124, 125, 126, 127
-};
-
 static void stk_printstr(const kstring_t *s, unsigned line_len)
 {
 	if (line_len != UINT_MAX && line_len != 0) {
@@ -215,21 +151,6 @@ static inline void stk_printseq(const kseq_t *s, int line_len)
    under the 3-clause BSD license.
 */
 
-typedef uint64_t krint64_t;
-
-struct _krand_t;
-typedef struct _krand_t krand_t;
-
-#define KR_NN 312
-#define KR_MM 156
-#define KR_UM 0xFFFFFFFF80000000ULL /* Most significant 33 bits */
-#define KR_LM 0x7FFFFFFFULL /* Least significant 31 bits */
-
-struct _krand_t {
-	int mti;
-	krint64_t mt[KR_NN];
-};
-
 static void kr_srand0(krint64_t seed, krand_t *kr)
 {
 	kr->mt[0] = seed;
@@ -271,9 +192,6 @@ krint64_t kr_rand(krand_t *kr)
     x ^= (x >> 43);
     return x;
 }
-
-#define kr_drand(_kr) ((kr_rand(_kr) >> 11) * (1.0/9007199254740992.0))
-
 
 /* quality based trimming with Mott's algorithm */
 int stk_trimfq(int argc, char *argv[])
@@ -1569,10 +1487,6 @@ int stk_kfreq(int argc, char *argv[])
 
 /* fqchk */
 
-typedef struct {
-	int64_t q[94], b[5];
-} posstat_t;
-
 static void fqc_aux(posstat_t *p, int pos, int64_t allq[94], double perr[94], int qthres)
 {
 	int k;
@@ -1673,28 +1587,28 @@ int stk_fqchk(int argc, char *argv[])
 /* main function */
 static int usage()
 {
-	fprintf(stderr, "\n");
-	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.3-r106\n\n");
-	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
-	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
-	fprintf(stderr, "         sample    subsample sequences\n");
-	fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
-	fprintf(stderr, "         fqchk     fastq QC (base/quality summary)\n");
-	fprintf(stderr, "         mergepe   interleave two PE FASTA/Q files\n");
-	fprintf(stderr, "         trimfq    trim FASTQ using the Phred algorithm\n\n");
-	fprintf(stderr, "         hety      regional heterozygosity\n");
-	fprintf(stderr, "         gc        identify high- or low-GC regions\n");
-	fprintf(stderr, "         mutfa     point mutate FASTA at specified positions\n");
-	fprintf(stderr, "         mergefa   merge two FASTA/Q files\n");
-	fprintf(stderr, "         famask    apply a X-coded FASTA to a source FASTA\n");
-	fprintf(stderr, "         dropse    drop unpaired from interleaved PE FASTA/Q\n");
-	fprintf(stderr, "         rename    rename sequence names\n");
-	fprintf(stderr, "         randbase  choose a random base from hets\n");
-	fprintf(stderr, "         cutN      cut sequence at long N\n");
-	fprintf(stderr, "         listhet   extract the position of each het\n");
-	fprintf(stderr, "\n");
-	return 1;
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
+    fprintf(stderr, "Version: 1.3-r106\n\n");
+    fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
+    fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
+    fprintf(stderr, "         sample    subsample sequences\n");
+    fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
+    fprintf(stderr, "         fqchk     fastq QC (base/quality summary)\n");
+    fprintf(stderr, "         mergepe   interleave two PE FASTA/Q files\n");
+    fprintf(stderr, "         trimfq    trim FASTQ using the Phred algorithm\n\n");
+    fprintf(stderr, "         hety      regional heterozygosity\n");
+    fprintf(stderr, "         gc        identify high- or low-GC regions\n");
+    fprintf(stderr, "         mutfa     point mutate FASTA at specified positions\n");
+    fprintf(stderr, "         mergefa   merge two FASTA/Q files\n");
+    fprintf(stderr, "         famask    apply a X-coded FASTA to a source FASTA\n");
+    fprintf(stderr, "         dropse    drop unpaired from interleaved PE FASTA/Q\n");
+    fprintf(stderr, "         rename    rename sequence names\n");
+    fprintf(stderr, "         randbase  choose a random base from hets\n");
+    fprintf(stderr, "         cutN      cut sequence at long N\n");
+    fprintf(stderr, "         listhet   extract the position of each het\n");
+    fprintf(stderr, "\n");
+    return 1;
 }
 
 int main(int argc, char *argv[])
