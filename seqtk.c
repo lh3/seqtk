@@ -542,17 +542,17 @@ int stk_hety(int argc, char *argv[])
 }
 
 /* subseq */
-
 int stk_subseq(int argc, char *argv[])
 {
 	khash_t(reg) *h = kh_init(reg);
 	gzFile fp;
 	kseq_t *seq;
-	int l, i, j, c, is_tab = 0, line = 0;
+	int l, i, j, c, is_tab = 0, line = 0, remove = 0;
 	khint_t k;
-	while ((c = getopt(argc, argv, "tl:")) >= 0) {
+	while ((c = getopt(argc, argv, "trl:")) >= 0) {
 		switch (c) {
 		case 't': is_tab = 1; break;
+        case 'r': remove = 1; break;
 		case 'l': line = atoi(optarg); break;
 		}
 	}
@@ -560,6 +560,7 @@ int stk_subseq(int argc, char *argv[])
 		fprintf(stderr, "\n");
 		fprintf(stderr, "Usage:   seqtk subseq [options] <in.fa> <in.bed>|<name.list>\n\n");
 		fprintf(stderr, "Options: -t       TAB delimited output\n");
+        fprintf(stderr, "         -r       extract sequence that are not in <in.bed>|<name.list>\n");
 		fprintf(stderr, "         -l INT   sequence line length [%d]\n\n", line);
 		fprintf(stderr, "Note: Use 'samtools faidx' if only a few regions are intended.\n\n");
 		return 1;
@@ -579,38 +580,69 @@ int stk_subseq(int argc, char *argv[])
 	while ((l = kseq_read(seq)) >= 0) {
 		reglist_t *p;
 		k = kh_get(reg, h, seq->name.s);
-		if (k == kh_end(h)) continue;
-		p = &kh_val(h, k);
-		for (i = 0; i < p->n; ++i) {
-			int beg = p->a[i]>>32, end = p->a[i];
-			if (beg >= seq->seq.l) {
-				fprintf(stderr, "[subseq] %s: %d >= %ld\n", seq->name.s, beg, seq->seq.l);
-				continue;
-			}
-			if (end > seq->seq.l) end = seq->seq.l;
-			if (is_tab == 0) {
-				printf("%c%s", seq->qual.l == seq->seq.l? '@' : '>', seq->name.s);
-				if (beg > 0 || (int)p->a[i] != INT_MAX) {
-					if (end == INT_MAX) {
-						if (beg) printf(":%d", beg+1);
-					} else printf(":%d-%d", beg+1, end);
-				}
-				if (seq->comment.l) printf(" %s", seq->comment.s);
-			} else printf("%s\t%d\t", seq->name.s, beg + 1);
-			if (end > seq->seq.l) end = seq->seq.l;
-			for (j = 0; j < end - beg; ++j) {
-				if (is_tab == 0 && (j == 0 || (line > 0 && j % line == 0))) putchar('\n');
-				putchar(seq->seq.s[j + beg]);
-			}
-			putchar('\n');
-			if (seq->qual.l != seq->seq.l || is_tab) continue;
-			printf("+");
-			for (j = 0; j < end - beg; ++j) {
-				if (j == 0 || (line > 0 && j % line == 0)) putchar('\n');
-				putchar(seq->qual.s[j + beg]);
-			}
-			putchar('\n');
-		}
+        if ((k == kh_end(h)) && (remove == 1)) {
+            if (is_tab == 0) {
+                if (seq->qual.l == seq->seq.l) {
+                    printf("@%s", seq->name.s);
+                    if (seq->comment.l) printf(" %s", seq->comment.s);
+                    putchar('\n');
+                    printf("%s\n", seq->seq.s);
+                    printf("+\n");
+                    printf("%s\n", seq->qual.s);
+                }
+                else {
+                    printf(">%s", seq->name.s);
+                    if (seq->comment.l) printf(" %s", seq->comment.s);
+                    for (j = 0; j < seq->seq.l; ++j) {
+				        if ((j == 0) || (line > 0 && j % line == 0)) putchar('\n');
+				        putchar(seq->seq.s[j]);
+                    }
+                    putchar('\n');
+                }
+            }
+            else printf("%s\t1\t%s\n", seq->name.s, seq->seq.s);
+        }
+        else {
+            if (k == kh_end(h) || (remove == 1)) continue;
+            p = &kh_val(h, k);
+            for (i = 0; i < p->n; ++i) {
+                int beg = p->a[i]>>32, end = p->a[i];
+			    if (beg >= seq->seq.l) {
+				    fprintf(stderr, "[subseq] %s: %d >= %ld\n", seq->name.s, beg, seq->seq.l);
+				    continue;
+			    }
+			    if (end > seq->seq.l) end = seq->seq.l;
+			    if (is_tab == 0) {
+				    printf("%c%s", seq->qual.l == seq->seq.l? '@' : '>', seq->name.s);
+				    if (beg > 0 || (int)p->a[i] != INT_MAX) {
+					    if (end == INT_MAX) {
+						    if (beg) printf(":%d", beg+1);
+					    } else printf(":%d-%d", beg+1, end);
+				    }
+				    if (seq->comment.l) printf(" %s", seq->comment.s);
+			    } else printf("%s\t%d\t", seq->name.s, beg + 1);
+			    if (end > seq->seq.l) end = seq->seq.l;
+                if (seq->qual.l == seq->seq.l) {
+                    if (is_tab == 0) putchar('\n');
+                    for (j = 0; j < end - beg; ++j) {
+				        putchar(seq->seq.s[j + beg]);
+                    }
+                }
+                else {
+                    for (j = 0; j < end - beg; ++j) {
+				        if ((is_tab == 0) && (j == 0 || (line > 0 && j % line == 0))) putchar('\n');
+				        putchar(seq->seq.s[j + beg]);
+                    }
+                }
+			    putchar('\n');
+                if (seq->qual.l != seq->seq.l || is_tab) continue;
+			    printf("+\n");
+                for (j = 0; j < end - beg; ++j) {
+				    putchar(seq->qual.s[j + beg]);
+			    }
+			    putchar('\n');
+		    }
+        }
 	}
 	// free
 	kseq_destroy(seq);
