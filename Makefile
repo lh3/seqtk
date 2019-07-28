@@ -5,7 +5,7 @@ BINDIR=/usr/local/bin
 all:seqtk
 
 seqtk:seqtk.c khash.h kseq.h
-		$(CC) $(CFLAGS) seqtk.c -o $@ -lz -lm
+		$(CC) $(CFLAGS) seqtk.c -o $@ $(LDFLAGS) -lz -lm
 
 install:all
 		install seqtk $(BINDIR)
