@@ -206,6 +206,21 @@ static inline void stk_printseq(const kseq_t *s, int line_len)
 	stk_printseq_renamed(s, line_len, 0, -1);
 }
 
+static inline void stk_zipseq(const kseq_t* s, gzFile fp)
+{
+    gzwrite(fp, "@", 1);
+    gzwrite(fp, s->name.s, s->name.l);
+    if(s->comment.l){
+        gzwrite(fp, " ", 1);
+        gzwrite(fp, s->comment.s, s->comment.l);
+    }
+    gzwrite(fp, "\n", 1);
+    gzwrite(fp, s->seq.s, s->seq.l);
+    gzwrite(fp, "\n+\n", 3);
+    gzwrite(fp, s->qual.s, s->qual.l);
+    gzwrite(fp, "\n", 1);
+}
+
 /* 
    64-bit Mersenne Twister pseudorandom number generator. Adapted from:
 
@@ -1027,21 +1042,26 @@ int stk_sample(int argc, char *argv[])
 	int c, twopass = 0;
 	uint64_t i, num = 0, n_seqs = 0;
 	double frac = 0.;
+    char* out = NULL;
+    gzFile ofp;
 	gzFile fp;
 	kseq_t *seq;
 	krand_t *kr = 0;
 
-	while ((c = getopt(argc, argv, "2s:")) >= 0)
+	while ((c = getopt(argc, argv, "2so:")) >= 0)
 		if (c == 's') kr = kr_srand(atol(optarg));
 		else if (c == '2') twopass = 1;
+        else if (c == 'o') out = optarg;
 
 	if (optind + 2 > argc) {
 		fprintf(stderr, "\n");
-		fprintf(stderr, "Usage:   seqtk sample [-2] [-s seed=11] <in.fa> <frac>|<number>\n\n");
+		fprintf(stderr, "Usage:   seqtk sample [-2] [-s seed=11] [-o] <in.fa> <frac>|<number>\n\n");
 		fprintf(stderr, "Options: -s INT       RNG seed [11]\n");
-		fprintf(stderr, "         -2           2-pass mode: twice as slow but with much reduced memory\n\n");
+		fprintf(stderr, "         -2           2-pass mode: twice as slow but with much reduced memory\n");
+        fprintf(stderr, "         -o           output file\n\n");
 		return 1;
 	}
+    if(out) ofp = gzopen(out, "wb");
 	frac = atof(argv[optind+1]);
 	if (frac >= 1.0) num = (uint64_t)(frac + .499), frac = 0.;
 	else if (twopass) {
@@ -1072,14 +1092,21 @@ int stk_sample(int argc, char *argv[])
 			if (num) {
 				uint64_t y = n_seqs - 1 < num? n_seqs - 1 : (uint64_t)(r * n_seqs);
 				if (y < num) cpy_kseq(&buf[y], seq);
-			} else if (r < frac) stk_printseq(seq, UINT_MAX);
+			} else if (r < frac){
+                if(out) stk_zipseq(seq, ofp);
+                else stk_printseq(seq, UINT_MAX);
+            }
 		}
 		for (i = 0; i < num; ++i) {
 			kseq_t *p = &buf[i];
-			if (p->seq.l) stk_printseq(p, UINT_MAX);
+			if (p->seq.l){
+                if(out) stk_zipseq(p, ofp);
+                else stk_printseq(p, UINT_MAX);
+            }
 			free(p->seq.s); free(p->qual.s); free(p->name.s);
 		}
 		if (buf != NULL) free(buf);
+        if(out) gzclose(ofp);
 	} else {
 		uint64_t *buf;
 		khash_t(64) *hash;
@@ -1118,8 +1145,11 @@ int stk_sample(int argc, char *argv[])
 		seq = kseq_init(fp);
 		n_seqs = 0;
 		while (kseq_read(seq) >= 0)
-			if (kh_get(64, hash, ++n_seqs) != kh_end(hash))
-				stk_printseq(seq, UINT_MAX);
+			if (kh_get(64, hash, ++n_seqs) != kh_end(hash)){
+                if(out) stk_zipseq(seq, ofp);
+				else stk_printseq(seq, UINT_MAX);
+            }
+        if(out) gzclose(ofp);
 		kh_destroy(64, hash);
 	}
 
