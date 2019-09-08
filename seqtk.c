@@ -1048,7 +1048,7 @@ int stk_sample(int argc, char *argv[])
 	kseq_t *seq;
 	krand_t *kr = 0;
 
-	while ((c = getopt(argc, argv, "2so:")) >= 0)
+	while ((c = getopt(argc, argv, "2s:o:")) >= 0)
 		if (c == 's') kr = kr_srand(atol(optarg));
 		else if (c == '2') twopass = 1;
         else if (c == 'o') out = optarg;
