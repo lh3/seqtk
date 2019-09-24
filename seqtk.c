@@ -1043,25 +1043,35 @@ int stk_sample(int argc, char *argv[])
 	uint64_t i, num = 0, n_seqs = 0;
 	double frac = 0.;
     char* out = NULL;
+    int complevel = 1;
     gzFile ofp;
 	gzFile fp;
 	kseq_t *seq;
 	krand_t *kr = 0;
 
-	while ((c = getopt(argc, argv, "2s:o:")) >= 0)
+	while ((c = getopt(argc, argv, "2sc:o:")) >= 0)
 		if (c == 's') kr = kr_srand(atol(optarg));
 		else if (c == '2') twopass = 1;
         else if (c == 'o') out = optarg;
+        else if (c == 'c'){
+            complevel = atoi(optarg);
+            if(complevel < 1) complevel = 1;
+            if(complevel > 9) complevel = 9;
+        }
 
 	if (optind + 2 > argc) {
 		fprintf(stderr, "\n");
-		fprintf(stderr, "Usage:   seqtk sample [-2] [-s seed=11] [-o] <in.fa> <frac>|<number>\n\n");
+		fprintf(stderr, "Usage:   seqtk sample [-2] [-s seed=11] [-c compress=1] [-o] <in.fa> <frac>|<number>\n\n");
 		fprintf(stderr, "Options: -s INT       RNG seed [11]\n");
 		fprintf(stderr, "         -2           2-pass mode: twice as slow but with much reduced memory\n");
+        fprintf(stderr, "         -c           compression level [1]\n");
         fprintf(stderr, "         -o           output file\n\n");
 		return 1;
 	}
-    if(out) ofp = gzopen(out, "wb");
+    if(out){
+        ofp = gzopen(out, "wb");
+        gzsetparams(ofp, complevel, Z_DEFAULT_STRATEGY);
+    }
 	frac = atof(argv[optind+1]);
 	if (frac >= 1.0) num = (uint64_t)(frac + .499), frac = 0.;
 	else if (twopass) {
