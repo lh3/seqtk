@@ -541,6 +541,42 @@ int stk_hety(int argc, char *argv[])
 	return 0;
 }
 
+int stk_gap(int argc, char *argv[])
+{
+	gzFile fp;
+	kseq_t *seq;
+	int len, c, min_size = 20000;
+	if (argc == 1) {
+		fprintf(stderr, "Usage: seqtk gap [-l %d] <in.fa>\n", min_size);
+		return 1;
+	}
+	while ((c = getopt(argc, argv, "l:")) >= 0) {
+		switch (c) {
+		case 'l': min_size = atoi(optarg); break;
+		}
+	}
+	fp = (strcmp(argv[optind], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[optind], "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
+	seq = kseq_init(fp);
+	while ((len = kseq_read(seq)) >= 0) {
+		int i, l;
+		for (i = l = 0; i <= len; ++i) {
+			c = i < len? seq_nt6_table[(uint8_t)seq->seq.s[i]] : 5;
+			if (i == len || (c >= 1 && c <= 4)) {
+				if (l > 0 && l >= min_size)
+					printf("%s\t%d\t%d\n", seq->name.s, i - l, i);
+				l = 0;
+			} else ++l;
+		}
+	}
+	kseq_destroy(seq);
+	gzclose(fp);
+	return 0;
+}
+
 /* subseq */
 
 int stk_subseq(int argc, char *argv[])
@@ -1675,7 +1711,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.3-r106\n\n");
+	fprintf(stderr, "Version: 1.3-r107-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
@@ -1692,6 +1728,7 @@ static int usage()
 	fprintf(stderr, "         rename    rename sequence names\n");
 	fprintf(stderr, "         randbase  choose a random base from hets\n");
 	fprintf(stderr, "         cutN      cut sequence at long N\n");
+	fprintf(stderr, "         gap       get the gap locations\n");
 	fprintf(stderr, "         listhet   extract the position of each het\n");
 	fprintf(stderr, "\n");
 	return 1;
@@ -1711,6 +1748,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "dropse") == 0) return stk_dropse(argc-1, argv+1);
 	else if (strcmp(argv[1], "randbase") == 0) return stk_randbase(argc-1, argv+1);
 	else if (strcmp(argv[1], "cutN") == 0) return stk_cutN(argc-1, argv+1);
+	else if (strcmp(argv[1], "gap") == 0) return stk_gap(argc-1, argv+1);
 	else if (strcmp(argv[1], "listhet") == 0) return stk_listhet(argc-1, argv+1);
 	else if (strcmp(argv[1], "famask") == 0) return stk_famask(argc-1, argv+1);
 	else if (strcmp(argv[1], "trimfq") == 0) return stk_trimfq(argc-1, argv+1);
