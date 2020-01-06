@@ -545,7 +545,7 @@ int stk_gap(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int len, c, min_size = 20000;
+	int len, c, min_size = 50;
 	if (argc == 1) {
 		fprintf(stderr, "Usage: seqtk gap [-l %d] <in.fa>\n", min_size);
 		return 1;
@@ -1711,7 +1711,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.3-r107-dirty\n\n");
+	fprintf(stderr, "Version: 1.3-r113-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
