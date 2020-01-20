@@ -60,4 +60,5 @@ Seqtk Examples
         seqtk trimfq -b 5 -e 10 in.fa > out.fa
 
 * Split a FASTA/Q file into 7 files prefixed `out`:
+
         seqtk split -n 7 out in.fa
