@@ -168,42 +168,43 @@ char comp_tab[] = {
 	'p', 'q', 'y', 's', 'a', 'a', 'b', 'w', 'x', 'r', 'z', 123, 124, 125, 126, 127
 };
 
-static void stk_printstr(const kstring_t *s, unsigned line_len)
+static void stk_printstr(FILE *fp, const kstring_t *s, unsigned line_len)
 {
 	if (line_len != UINT_MAX && line_len != 0) {
 		int i, rest = s->l;
 		for (i = 0; i < s->l; i += line_len, rest -= line_len) {
-			putchar('\n');
-			if (rest > line_len) fwrite(s->s + i, 1, line_len, stdout);
-			else fwrite(s->s + i, 1, rest, stdout);
+			fputc('\n', fp);
+			if (rest > line_len) fwrite(s->s + i, 1, line_len, fp);
+			else fwrite(s->s + i, 1, rest, fp);
 		}
-		putchar('\n');
+		fputc('\n', fp);
 	} else {
-		putchar('\n');
-		puts(s->s);
+		fputc('\n', fp);
+		fputs(s->s, fp);
+		fputc('\n', fp);
 	}
 }
 
-static inline void stk_printseq_renamed(const kseq_t *s, int line_len, const char *prefix, int64_t n)
+static inline void stk_printseq_renamed(FILE *fp, const kseq_t *s, int line_len, const char *prefix, int64_t n)
 {
-	putchar(s->qual.l? '@' : '>');
+	fputc(s->qual.l? '@' : '>', fp);
 	if (n >= 0) {
-		if (prefix) fputs(prefix, stdout);
-		printf("%lld", (long long)n);
-	} else fputs(s->name.s, stdout);
+		if (prefix) fputs(prefix, fp);
+		fprintf(fp, "%lld", (long long)n);
+	} else fputs(s->name.s, fp);
 	if (s->comment.l) {
-		putchar(' '); fputs(s->comment.s, stdout);
+		fputc(' ', fp); fputs(s->comment.s, fp);
 	}
-	stk_printstr(&s->seq, line_len);
+	stk_printstr(fp, &s->seq, line_len);
 	if (s->qual.l) {
-		putchar('+');
-		stk_printstr(&s->qual, line_len);
+		fputc('+', fp);
+		stk_printstr(fp, &s->qual, line_len);
 	}
 }
 
-static inline void stk_printseq(const kseq_t *s, int line_len)
+static inline void stk_printseq(FILE *fp, const kseq_t *s, int line_len)
 {
-	stk_printseq_renamed(s, line_len, 0, -1);
+	stk_printseq_renamed(fp, s, line_len, 0, -1);
 }
 
 /* 
@@ -912,6 +913,54 @@ int stk_listhet(int argc, char *argv[])
 	return 0;
 }
 
+int stk_split(int argc, char *argv[])
+{
+	gzFile fp;
+	kseq_t *seq;
+	int c, i, l, n = 10, len = 0;
+	char *prefix, *fn;
+	FILE **out;
+	while ((c = getopt(argc, argv, "n:l:")) >= 0) {
+		if (c == 'n') n = atoi(optarg);
+		else if (c == 'l') len = atoi(optarg);
+	}
+	if (argc == optind) {
+		fprintf(stderr, "Usage: seqtk split [options] <prefix> <in.fa>\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -n INT    number of files [%d]\n", n);
+		fprintf(stderr, "  -l INT    line length [%d]\n", len);
+		return 1;
+	}
+	prefix = argv[optind];
+	fp = (strcmp(argv[optind+1], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[optind+1], "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
+	out = (FILE**)malloc(sizeof(FILE*) * n);
+	fn = (char*)malloc(strlen(prefix) + 10);
+	for (i = 0; i < n; ++i) {
+		sprintf(fn, "%s.%.5d.fa", prefix, i + 1);
+		out[i] = fopen(fn, "w+");
+		if (out[i] == 0) {
+			fprintf(stderr, "ERROR: failed to create file %s\n", fn);
+			exit(1);
+		}
+	}
+	free(fn);
+	seq = kseq_init(fp);
+	i = 0;
+	while ((l = kseq_read(seq)) >= 0) {
+		stk_printseq(out[i % n], seq, len);
+		++i;
+	}
+	for (i = 0; i < n; ++i) fclose(out[i]);
+	free(out);
+	kseq_destroy(seq);
+	gzclose(fp);
+	return 0;
+}
+
 /* cutN */
 static int cutN_min_N_tract = 1000;
 static int cutN_nonN_penalty = 10;
@@ -1108,11 +1157,11 @@ int stk_sample(int argc, char *argv[])
 			if (num) {
 				uint64_t y = n_seqs - 1 < num? n_seqs - 1 : (uint64_t)(r * n_seqs);
 				if (y < num) cpy_kseq(&buf[y], seq);
-			} else if (r < frac) stk_printseq(seq, UINT_MAX);
+			} else if (r < frac) stk_printseq(stdout, seq, UINT_MAX);
 		}
 		for (i = 0; i < num; ++i) {
 			kseq_t *p = &buf[i];
-			if (p->seq.l) stk_printseq(p, UINT_MAX);
+			if (p->seq.l) stk_printseq(stdout, p, UINT_MAX);
 			free(p->seq.s); free(p->qual.s); free(p->name.s);
 		}
 		if (buf != NULL) free(buf);
@@ -1155,7 +1204,7 @@ int stk_sample(int argc, char *argv[])
 		n_seqs = 0;
 		while (kseq_read(seq) >= 0)
 			if (kh_get(64, hash, ++n_seqs) != kh_end(hash))
-				stk_printseq(seq, UINT_MAX);
+				stk_printseq(stdout, seq, UINT_MAX);
 		kh_destroy(64, hash);
 	}
 
@@ -1353,7 +1402,7 @@ int stk_seq(int argc, char *argv[])
 				if (seq_nt16to4_table[seq_nt16_table[(int)seq->seq.s[i]]] > 3) break;
 			if (i < seq->seq.l) continue;
 		}
-		stk_printseq(seq, line_len);
+		stk_printseq(stdout, seq, line_len);
 	}
 	kseq_destroy(seq);
 	gzclose(fp);
@@ -1445,8 +1494,8 @@ int stk_mergepe(int argc, char *argv[])
 			fprintf(stderr, "[W::%s] the 2nd file has fewer records.\n", __func__);
 			break;
 		}
-		stk_printseq(seq[0], 0);
-		stk_printseq(seq[1], 0);
+		stk_printseq(stdout, seq[0], 0);
+		stk_printseq(stdout, seq[1], 0);
 	}
 	if (kseq_read(seq[1]) >= 0)
 		fprintf(stderr, "[W::%s] the 1st file has fewer records.\n", __func__);
@@ -1481,8 +1530,8 @@ int stk_dropse(int argc, char *argv[])
 				is_diff = strncmp(p->s, q->s, l);
 			} else is_diff = 1;
 			if (!is_diff) {
-				stk_printseq(&last, 0);
-				stk_printseq(seq, 0);
+				stk_printseq(stdout, &last, 0);
+				stk_printseq(stdout, seq, 0);
 				last.name.l = 0;
 			} else cpy_kseq(&last, seq);
 		} else cpy_kseq(&last, seq);
@@ -1523,18 +1572,18 @@ int stk_rename(int argc, char *argv[])
 				is_diff = strncmp(p->s, q->s, l);
 			} else is_diff = 1;
 			if (!is_diff) {
-				stk_printseq_renamed(&last, 0, prefix, n);
-				stk_printseq_renamed(seq,   0, prefix, n);
+				stk_printseq_renamed(stdout, &last, 0, prefix, n);
+				stk_printseq_renamed(stdout, seq,   0, prefix, n);
 				last.name.l = 0;
 				++n;
 			} else {
-				stk_printseq_renamed(&last, 0, prefix, n);
+				stk_printseq_renamed(stdout, &last, 0, prefix, n);
 				++n;
 				cpy_kseq(&last, seq);
 			}
 		} else cpy_kseq(&last, seq);
 	}
-	if (last.name.l) stk_printseq_renamed(&last, 0, prefix, n);
+	if (last.name.l) stk_printseq_renamed(stdout, &last, 0, prefix, n);
 
 	kseq_destroy(seq);
 	gzclose(fp);
@@ -1711,7 +1760,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.3-r113-dirty\n\n");
+	fprintf(stderr, "Version: 1.3-r114-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
@@ -1757,6 +1806,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "seq") == 0) return stk_seq(argc-1, argv+1);
 	else if (strcmp(argv[1], "kfreq") == 0) return stk_kfreq(argc-1, argv+1);
 	else if (strcmp(argv[1], "rename") == 0) return stk_rename(argc-1, argv+1);
+	else if (strcmp(argv[1], "split") == 0) return stk_split(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[main] unrecognized command '%s'. Abort!\n", argv[1]);
 		return 1;
