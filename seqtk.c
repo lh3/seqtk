@@ -1764,7 +1764,7 @@ static int usage()
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
-    fprintf(stderr, "         split     split a FASTA/Q file into N files\n");
+	fprintf(stderr, "         split     split a FASTA/Q file into N files\n");
 	fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
 	fprintf(stderr, "         fqchk     fastq QC (base/quality summary)\n");
 	fprintf(stderr, "         mergepe   interleave two PE FASTA/Q files\n");
@@ -1807,7 +1807,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "seq") == 0) return stk_seq(argc-1, argv+1);
 	else if (strcmp(argv[1], "kfreq") == 0) return stk_kfreq(argc-1, argv+1);
 	else if (strcmp(argv[1], "rename") == 0) return stk_rename(argc-1, argv+1);
-	else if (strcmp(argv[1], "split") == 0) return stk_split(argc-1, argv+1);
+    else if (strcmp(argv[1], "split") == 0) return stk_split(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[main] unrecognized command '%s'. Abort!\n", argv[1]);
 		return 1;
