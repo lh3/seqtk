@@ -1543,6 +1543,59 @@ int stk_dropse(int argc, char *argv[])
 	return 0;
 }
 
+static inline int kputc(int c, kstring_t *s)
+{
+	if (s->l + 1 >= s->m) {
+		char *tmp;
+		s->m = s->l + 2;
+		kroundup32(s->m);
+		if ((tmp = (char*)realloc(s->s, s->m)))
+			s->s = tmp;
+		else
+			return EOF;
+	}
+	s->s[s->l++] = c;
+	s->s[s->l] = 0;
+	return c;
+}
+
+int stk_hpc(int argc, char *argv[])
+{
+	gzFile fp;
+	kseq_t *seq;
+	kstring_t str = {0,0,0};
+
+	if (argc == 1 && isatty(fileno(stdin))) {
+		fprintf(stderr, "Usage: seqtk hpc <in.fq>\n");
+		return 1;
+	}
+	fp = argc > 1 && strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
+	seq = kseq_init(fp);
+
+	while (kseq_read(seq) >= 0) {
+		int i, last;
+		str.l = 0;
+		if (seq->seq.l == 0) continue;
+		for (i = 1, last = 0; i <= seq->seq.l; ++i) {
+			if (i == seq->seq.l || seq->seq.s[last] != seq->seq.s[i]) {
+				kputc(seq->seq.s[last], &str);
+				last = i;
+			}
+		}
+		putchar('>'); puts(seq->name.s);
+		puts(str.s);
+	}
+
+	kseq_destroy(seq);
+	gzclose(fp);
+	free(str.s);
+	return 0;
+}
+
 int stk_rename(int argc, char *argv[])
 {
 	gzFile fp;
@@ -1760,7 +1813,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.3-r114-dirty\n\n");
+	fprintf(stderr, "Version: 1.3-r115-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
@@ -1779,6 +1832,7 @@ static int usage()
 	fprintf(stderr, "         cutN      cut sequence at long N\n");
 	fprintf(stderr, "         gap       get the gap locations\n");
 	fprintf(stderr, "         listhet   extract the position of each het\n");
+	fprintf(stderr, "         hpc       homopolyer-compressed sequence\n");
 	fprintf(stderr, "\n");
 	return 1;
 }
@@ -1807,6 +1861,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "kfreq") == 0) return stk_kfreq(argc-1, argv+1);
 	else if (strcmp(argv[1], "rename") == 0) return stk_rename(argc-1, argv+1);
 	else if (strcmp(argv[1], "split") == 0) return stk_split(argc-1, argv+1);
+	else if (strcmp(argv[1], "hpc") == 0) return stk_hpc(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[main] unrecognized command '%s'. Abort!\n", argv[1]);
 		return 1;
