@@ -41,6 +41,7 @@ KSEQ_INIT(gzFile, gzread)
 typedef struct {
 	int n, m;
 	uint64_t *a;
+	int8_t *rev;
 } reglist_t;
 
 #include "khash.h"
@@ -48,6 +49,65 @@ KHASH_MAP_INIT_STR(reg, reglist_t)
 KHASH_SET_INIT_INT64(64)
 
 typedef kh_reg_t reghash_t;
+
+reghash_t *stk_reg_read_alt(const char *fn)
+{
+	reghash_t *h = kh_init(reg);
+	gzFile fp;
+	kstream_t *ks;
+	int dret;
+	kstring_t str = {0,0,0};
+
+	fp = strcmp(fn, "-")? gzopen(fn, "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) return 0;
+	ks = ks_init(fp);
+	while (ks_getuntil(ks, KS_SEP_LINE, &str, &dret) >= 0) {
+		int i, c, st = -1, en = -1, rev = 0;
+		char *p, *q;
+		reglist_t *r;
+		khint_t k;
+		for (i = 0, p = q = str.s;; ++p) {
+			if (*p == '\t' || *p == '\0') {
+				c = *p;
+				*p = 0;
+				if (i == 1) {
+					if (isdigit(*q)) st = strtol(q, &q, 10);
+					if (q != p) st = -1;
+				} else if (i == 2) {
+					if (isdigit(*q)) en = strtol(q, &q, 10);
+					if (q != p) en = -1;
+				} else if (i == 5) {
+					if (*q == '+') rev = 1;
+					else if (*q == '-') rev = -1;
+				}
+				++i, q = p + 1;
+				if (c == 0) break;
+			}
+		}
+		if (i == 0) continue;
+		k = kh_get(reg, h, str.s);
+		if (k == kh_end(h)) {
+			int ret;
+			char *s = strdup(str.s);
+			k = kh_put(reg, h, s, &ret);
+			memset(&kh_val(h, k), 0, sizeof(reglist_t));
+		}
+		r = &kh_val(h, k);
+		if (en < 0 && st > 0) en = st, st = st - 1; // if there is only one column
+		if (st < 0) st = 0, en = INT_MAX;
+		if (r->n == r->m) {
+			r->m = r->m? r->m<<1 : 4;
+			r->a = (uint64_t*)realloc(r->a, r->m * 8);
+			r->rev = (int8_t*)realloc(r->rev, r->m);
+		}
+		r->a[r->n] = (uint64_t)st<<32 | en;
+		r->rev[r->n++] = rev;
+	}
+	ks_destroy(ks);
+	gzclose(fp);
+	free(str.s);
+	return h;
+}
 
 reghash_t *stk_reg_read(const char *fn)
 {
@@ -106,6 +166,7 @@ void stk_reg_destroy(reghash_t *h)
 	for (k = 0; k < kh_end(h); ++k) {
 		if (kh_exist(h, k)) {
 			free(kh_val(h, k).a);
+			free(kh_val(h, k).rev);
 			free((char*)kh_key(h, k));
 		}
 	}
@@ -585,23 +646,28 @@ int stk_subseq(int argc, char *argv[])
 	khash_t(reg) *h = kh_init(reg);
 	gzFile fp;
 	kseq_t *seq;
-	int l, i, j, c, is_tab = 0, line = 0;
+	int l, i, j, c, is_tab = 0, line = 0, do_strand = 0;
+	char *seq_buf = 0;
+	uint32_t seq_max = 0;
 	khint_t k;
-	while ((c = getopt(argc, argv, "tl:")) >= 0) {
+	while ((c = getopt(argc, argv, "tl:s")) >= 0) {
 		switch (c) {
 		case 't': is_tab = 1; break;
+		case 's': do_strand = 1; break;
 		case 'l': line = atoi(optarg); break;
 		}
 	}
 	if (optind + 2 > argc) {
-		fprintf(stderr, "\n");
-		fprintf(stderr, "Usage:   seqtk subseq [options] <in.fa> <in.bed>|<name.list>\n\n");
-		fprintf(stderr, "Options: -t       TAB delimited output\n");
-		fprintf(stderr, "         -l INT   sequence line length [%d]\n\n", line);
-		fprintf(stderr, "Note: Use 'samtools faidx' if only a few regions are intended.\n\n");
+		fprintf(stderr, "Usage:   seqtk subseq [options] <in.fa> <in.bed>|<name.list>\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -t       TAB delimited output\n");
+		fprintf(stderr, "  -s       strand aware\n");
+		fprintf(stderr, "  -l INT   sequence line length [%d]\n", line);
+		fprintf(stderr, "Note: Use 'samtools faidx' if only a few regions are intended.\n");
 		return 1;
 	}
-	h = stk_reg_read(argv[optind+1]);
+	if (do_strand) h = stk_reg_read_alt(argv[optind+1]);
+	else h = stk_reg_read(argv[optind+1]);
 	if (h == 0) {
 		fprintf(stderr, "[E::%s] failed to read the list of regions in file '%s'\n", __func__, argv[optind+1]);
 		return 1;
@@ -635,21 +701,37 @@ int stk_subseq(int argc, char *argv[])
 				if (seq->comment.l) printf(" %s", seq->comment.s);
 			} else printf("%s\t%d\t", seq->name.s, beg + 1);
 			if (end > seq->seq.l) end = seq->seq.l;
-			for (j = 0; j < end - beg; ++j) {
-				if (is_tab == 0 && (j == 0 || (line > 0 && j % line == 0))) putchar('\n');
-				putchar(seq->seq.s[j + beg]);
+			if (do_strand && p->rev) { // TODO: the strand mode only works with FASTA
+				if (end - beg >= seq_max) {
+					seq_max = end - beg;
+					kroundup32(seq_max);
+					seq_buf = (char*)realloc(seq_buf, seq_max);
+				}
+				if (p->rev[i] < 0)
+					for (j = end - 1; j >= beg; --j)
+						seq_buf[end - 1 - j] = (uint8_t)seq->seq.s[j] >= 128? 'N' : comp_tab[(uint8_t)seq->seq.s[j]];
+				else memcpy(seq_buf, &seq->seq.s[beg], end - beg);
+				putchar('\n');
+				fwrite(seq_buf, 1, end - beg, stdout);
+				putchar('\n');
+			} else {
+				for (j = 0; j < end - beg; ++j) {
+					if (is_tab == 0 && (j == 0 || (line > 0 && j % line == 0))) putchar('\n');
+					putchar(seq->seq.s[j + beg]);
+				}
+				putchar('\n');
+				if (seq->qual.l != seq->seq.l || is_tab) continue;
+				printf("+");
+				for (j = 0; j < end - beg; ++j) {
+					if (j == 0 || (line > 0 && j % line == 0)) putchar('\n');
+					putchar(seq->qual.s[j + beg]);
+				}
+				putchar('\n');
 			}
-			putchar('\n');
-			if (seq->qual.l != seq->seq.l || is_tab) continue;
-			printf("+");
-			for (j = 0; j < end - beg; ++j) {
-				if (j == 0 || (line > 0 && j % line == 0)) putchar('\n');
-				putchar(seq->qual.s[j + beg]);
-			}
-			putchar('\n');
 		}
 	}
 	// free
+	free(seq_buf);
 	kseq_destroy(seq);
 	gzclose(fp);
 	stk_reg_destroy(h);
@@ -1813,7 +1895,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.3-r115-dirty\n\n");
+	fprintf(stderr, "Version: 1.3-r116-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
