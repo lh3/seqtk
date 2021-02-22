@@ -1890,31 +1890,155 @@ int stk_fqchk(int argc, char *argv[])
 	return 0;
 }
 
+
+int compare(const void *a, const void *b)
+{
+        return strcmp(*(char**)a, *(char**)b);
+}
+
+int prefixsplit(int argc, char *argv[])
+{
+	gzFile fp;
+	kseq_t *seq;
+	int c, i, flag = 0, l = UINT_MAX, p = 0, n = 1;
+	char *prefix, *fn, *pseq;
+	FILE **out;
+
+	while ((c = getopt(argc, argv, "p:AC")) >= 0) {
+	switch (c) {
+		case 'A': flag |= 1; break;
+		case 'C': flag |= 2; break;
+		case 'p': p = atoi(optarg); break;
+		}
+	}
+
+	if (argc == optind) {
+		fprintf(stderr, "Usage: seqtk split [options] <filename> <in.fa>\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -p INT    length of prefix [%d]\n", n);
+		fprintf(stderr, "  -A        force FASTA output (discard quality)\n");
+		fprintf(stderr, "  -C        drop comments at the header lines\n");
+		return 1;
+	}
+
+	prefix = argv[optind];
+	fp = (strcmp(argv[optind+1], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[optind+1], "r");
+
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	} 
+
+	n = pow(4, p);
+
+	char* m[n];
+
+	char* m_1[] = {"A", "C", "G", "T"};
+	char* m_2[] = {"AA", "AC", "AG", "AT", "CA", "CC", "CG", "CT", "GA", "GC", "GG", "GT", "TA", "TC", "TG", "TT"};
+	char* m_3[] = {"AAA", "AAC", "AAG", "AAT", "ACA", "ACC", "ACG", "ACT", "AGA", "AGC", "AGG", "AGT", "ATA", "ATC", "ATG", "ATT",
+			 	"CAA", "CAC", "CAG", "CAT", "CCA", "CCC", "CCG", "CCT", "CGA", "CGC", "CGG", "CGT", "CTA", "CTC", "CTG", "CTT",
+				"GAA", "GAC", "GAG", "GAT", "GCA", "GCC", "GCG", "GCT", "GGA", "GGC", "GGG", "GGT", "GTA", "GTC", "GTG", "GTT",
+				"TAA", "TAC", "TAG", "TAT", "TCA", "TCC", "TCG", "TCT", "TGA", "TGC", "TGG", "TGT", "TTA", "TTC", "TTG", "TTT"};	
+
+	if (p == 1) {
+		for( i = 0; i < n; i++ ) {		
+		 	m[i] = m_1[i];	
+		}
+	} else if (p == 2) {
+		for( i = 0; i < n; i++ ) {		
+		 	m[i] = m_2[i];	
+		}
+	} else if (p == 3) {
+		for( i = 0; i < n; i++ ) {		
+		 	m[i] = m_3[i];	
+		}
+	} else {
+		fprintf(stderr, "couldnt determined prefix array \n");
+		return 1;
+	}
+
+	out = (FILE**)malloc(sizeof(FILE*) * (n+1));
+
+	fn = (char*)malloc(strlen(prefix) + 10);
+
+	/*create n files */
+	for (i = 0; i < n; ++i) {
+		if (flag & 1){
+			sprintf(fn, "%s.%s.fa", prefix, m[i]);
+		} else {
+			sprintf(fn, "%s.%s.fastq", prefix, m[i]);
+		}
+		
+		
+		out[i] = fopen(fn, "w+");
+		if (out[i] == 0) {
+			fprintf(stderr, "ERROR: failed to create file %s\n", fn);
+			exit(1);
+		}
+	}
+
+	/*open an extra files for prefixes with an N in them */
+	if (flag & 1){
+		sprintf(fn, "%s.N.fa", prefix);
+	} else {
+		sprintf(fn, "%s.N.fastq", prefix);
+	}
+	out[n] = fopen(fn, "w+");
+
+	free(fn);
+	seq = kseq_init(fp);
+	size_t mlen = sizeof(m)/sizeof(m[0]);
+	pseq = malloc(p);
+	i = 0;
+
+	while ((kseq_read(seq)) >= 0) {
+		memcpy( pseq, &seq->seq.s[0], p );	
+		if (flag & 1) seq->qual.l = 0; // option -a: fastq -> fasta	
+		if (flag & 2) seq->comment.l = 0; // option -C: drop fasta/q comments
+ 		char** q  = bsearch(&pseq, m, mlen, sizeof(m[0]), compare);
+    	if ( q != NULL ) 
+    	{
+    		int pos=q-m;
+			stk_printseq(out[pos], seq, l);
+		} else {
+			stk_printseq(out[n], seq, l);
+		}
+		i++;
+	}
+
+	for (i = 0; i <= n; ++i) fclose(out[i]);
+	free(out);
+	kseq_destroy(seq);
+	gzclose(fp);
+	return 0;
+}
+
 /* main function */
 static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
 	fprintf(stderr, "Version: 1.3-r116-dirty\n\n");
-	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
-	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
-	fprintf(stderr, "         sample    subsample sequences\n");
-	fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
-	fprintf(stderr, "         fqchk     fastq QC (base/quality summary)\n");
-	fprintf(stderr, "         mergepe   interleave two PE FASTA/Q files\n");
-	fprintf(stderr, "         trimfq    trim FASTQ using the Phred algorithm\n\n");
-	fprintf(stderr, "         hety      regional heterozygosity\n");
-	fprintf(stderr, "         gc        identify high- or low-GC regions\n");
-	fprintf(stderr, "         mutfa     point mutate FASTA at specified positions\n");
-	fprintf(stderr, "         mergefa   merge two FASTA/Q files\n");
-	fprintf(stderr, "         famask    apply a X-coded FASTA to a source FASTA\n");
-	fprintf(stderr, "         dropse    drop unpaired from interleaved PE FASTA/Q\n");
-	fprintf(stderr, "         rename    rename sequence names\n");
-	fprintf(stderr, "         randbase  choose a random base from hets\n");
-	fprintf(stderr, "         cutN      cut sequence at long N\n");
-	fprintf(stderr, "         gap       get the gap locations\n");
-	fprintf(stderr, "         listhet   extract the position of each het\n");
-	fprintf(stderr, "         hpc       homopolyer-compressed sequence\n");
+	fprintf(stderr, "Command: seq       	common transformation of FASTA/Q\n");
+	fprintf(stderr, "         comp      	get the nucleotide composition of FASTA/Q\n");
+	fprintf(stderr, "         sample    	subsample sequences\n");
+	fprintf(stderr, "         subseq    	extract subsequences from FASTA/Q\n");
+	fprintf(stderr, "         fqchk     	fastq QC (base/quality summary)\n");
+	fprintf(stderr, "         mergepe   	interleave two PE FASTA/Q files\n");
+	fprintf(stderr, "         trimfq    	trim FASTQ using the Phred algorithm\n\n");
+	fprintf(stderr, "         hety      	regional heterozygosity\n");
+	fprintf(stderr, "         gc        	identify high- or low-GC regions\n");
+	fprintf(stderr, "         mutfa     	point mutate FASTA at specified positions\n");
+	fprintf(stderr, "         mergefa   	merge two FASTA/Q files\n");
+	fprintf(stderr, "         famask    	apply a X-coded FASTA to a source FASTA\n");
+	fprintf(stderr, "         dropse    	drop unpaired from interleaved PE FASTA/Q\n");
+	fprintf(stderr, "         rename    	rename sequence names\n");
+	fprintf(stderr, "         randbase  	choose a random base from hets\n");
+	fprintf(stderr, "         cutN      	cut sequence at long N\n");
+	fprintf(stderr, "         gap       	get the gap locations\n");
+	fprintf(stderr, "         listhet   	extract the position of each het\n");
+	fprintf(stderr, "         hpc       	homopolyer-compressed sequence\n");
+	fprintf(stderr, "         prefixsplit   split FASTA/Q based on read prefix\n");
 	fprintf(stderr, "\n");
 	return 1;
 }
@@ -1944,6 +2068,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "rename") == 0) return stk_rename(argc-1, argv+1);
 	else if (strcmp(argv[1], "split") == 0) return stk_split(argc-1, argv+1);
 	else if (strcmp(argv[1], "hpc") == 0) return stk_hpc(argc-1, argv+1);
+	else if (strcmp(argv[1], "prefixsplit") == 0) return prefixsplit(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[main] unrecognized command '%s'. Abort!\n", argv[1]);
 		return 1;
