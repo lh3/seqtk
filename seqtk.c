@@ -1913,7 +1913,7 @@ int prefixsplit(int argc, char *argv[])
 	}
 
 	if (argc == optind) {
-		fprintf(stderr, "Usage: seqtk split [options] <filename> <in.fa>\n");
+		fprintf(stderr, "Usage: seqtk prefixsplit [options] <filename> <in.fa>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -p INT    length of prefix [%d]\n", n);
 		fprintf(stderr, "  -A        force FASTA output (discard quality)\n");
