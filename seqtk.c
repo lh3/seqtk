@@ -246,6 +246,21 @@ static void stk_printstr(FILE *fp, const kstring_t *s, unsigned line_len)
 	}
 }
 
+static void stk_printstr_compact(FILE *fp, const kstring_t *s, unsigned line_len) 
+{
+	if (line_len != UINT_MAX && line_len != 0) {
+		int i, rest = s->l;
+		for (i = 0; i < s->l; i += line_len, rest -= line_len) {
+			fputc('\n', fp);
+			if (rest > line_len) fwrite(s->s + i, 1, line_len, fp);
+			else fwrite(s->s + i, 1, rest, fp);
+		}
+	} else {
+		fputc('\n', fp);
+		fputs(s->s, fp);
+	}
+}
+
 static inline void stk_printseq_renamed(FILE *fp, const kseq_t *s, int line_len, const char *prefix, int64_t n)
 {
 	fputc(s->qual.l? '@' : '>', fp);
@@ -1904,10 +1919,11 @@ int prefixsplit(int argc, char *argv[])
 	char *prefix, *fn, *pseq;
 	FILE **out;
 
-	while ((c = getopt(argc, argv, "p:AC")) >= 0) {
+	while ((c = getopt(argc, argv, "p:ACS")) >= 0) {
 	switch (c) {
 		case 'A': flag |= 1; break;
 		case 'C': flag |= 2; break;
+		case 'S': flag |= 4; break;
 		case 'p': p = atoi(optarg); break;
 		}
 	}
@@ -1918,6 +1934,7 @@ int prefixsplit(int argc, char *argv[])
 		fprintf(stderr, "  -p INT    length of prefix [%d]\n", n);
 		fprintf(stderr, "  -A        force FASTA output (discard quality)\n");
 		fprintf(stderr, "  -C        drop comments at the header lines\n");
+		fprintf(stderr, "  -S        drop read ID, i.e. only print sequence (overrides A and C options) \n");
 		return 1;
 	}
 
@@ -1999,9 +2016,17 @@ int prefixsplit(int argc, char *argv[])
     	if ( q != NULL ) 
     	{
     		int pos=q-m;
-			stk_printseq(out[pos], seq, l);
+    		if (flag & 4){
+    			stk_printstr_compact(out[pos], &seq->seq, l);
+    		} else {
+    			stk_printseq(out[pos], seq, l);
+    		}
 		} else {
-			stk_printseq(out[n], seq, l);
+			if (flag & 4){
+    			stk_printstr_compact(out[n], &seq->seq, l);
+    		} else {
+    			stk_printseq(out[n], seq, l);
+    		}
 		}
 		i++;
 	}
