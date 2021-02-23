@@ -2,3 +2,5 @@
 *.a
 *.dSYM
 .*.swp
+
+seqtk
