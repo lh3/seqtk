@@ -1895,13 +1895,14 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.3-r116-dirty\n\n");
+	fprintf(stderr, "Version: 1.3-r117-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
 	fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
 	fprintf(stderr, "         fqchk     fastq QC (base/quality summary)\n");
 	fprintf(stderr, "         mergepe   interleave two PE FASTA/Q files\n");
+	fprintf(stderr, "         split     split one file into multiple smaller files\n");
 	fprintf(stderr, "         trimfq    trim FASTQ using the Phred algorithm\n\n");
 	fprintf(stderr, "         hety      regional heterozygosity\n");
 	fprintf(stderr, "         gc        identify high- or low-GC regions\n");
