@@ -1346,14 +1346,14 @@ int stk_seq(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0, max_q = 255, fake_qual = -1;
+	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0, max_len = INT_MAX, max_q = 255, fake_qual = -1;
 	unsigned i, line_len = 0;
 	int64_t n_seqs = 0;
 	double frac = 1.;
 	khash_t(reg) *h = 0;
 	krand_t *kr = 0;
 
-	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:cVUX:SF:")) >= 0) {
+	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:E:cVUX:SF:")) >= 0) {
 		switch (c) {
 			case 'a':
 			case 'A': flag |= 1; break;
@@ -1373,6 +1373,7 @@ int stk_seq(int argc, char *argv[])
 			case 'X': max_q = atoi(optarg); break;
 			case 'l': line_len = atoi(optarg); break;
 			case 'L': min_len = atoi(optarg); break;
+			case 'E': max_len = atoi(optarg); break;
 			case 's': kr = kr_srand(atol(optarg)); break;
 			case 'f': frac = atof(optarg); break;
 			case 'F': fake_qual = *optarg; break;
@@ -1390,7 +1391,8 @@ int stk_seq(int argc, char *argv[])
 		fprintf(stderr, "         -s INT    random seed (effective with -f) [11]\n");
 		fprintf(stderr, "         -f FLOAT  sample FLOAT fraction of sequences [1]\n");
 		fprintf(stderr, "         -M FILE   mask regions in BED or name list FILE [null]\n");
-		fprintf(stderr, "         -L INT    drop sequences with length shorter than INT [0]\n");
+		fprintf(stderr, "         -L INT    drop sequences with length shorter than INT [%d]\n", min_len);
+		fprintf(stderr, "         -E INT    drop sequences with length longer than INT [%d]\n", max_len);
 		fprintf(stderr, "         -F CHAR   fake FASTQ quality []\n");
 		fprintf(stderr, "         -c        mask complement region (effective with -M)\n");
 		fprintf(stderr, "         -r        reverse complement\n");
@@ -1417,6 +1419,7 @@ int stk_seq(int argc, char *argv[])
 	while (kseq_read(seq) >= 0) {
 		++n_seqs;
 		if (seq->seq.l < min_len) continue; // NB: length filter before taking random
+		if (seq->seq.l > max_len) continue; // NB: length filter before taking random
 		if (frac < 1. && kr_drand(kr) >= frac) continue;
 		if (flag & 48) { // then choose odd/even reads only
 			if ((flag&16) && (n_seqs&1) == 0) continue;

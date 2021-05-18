@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-g -Wall -O2 -Wno-unused-function
+CFLAGS=-g -Wall -Ofast -Wno-unused-function
 BINDIR=/usr/local/bin
 
 all:seqtk
