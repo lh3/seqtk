@@ -59,3 +59,15 @@ Seqtk Examples
 
         seqtk trimfq -b 5 -e 10 in.fa > out.fa
 
+* Report the composition of the sequences in `in.fa`:
+
+        # Output format: chr, length, #A, #C, #G, #T, #2, #3, #4, #CpG, #tv, #ts, #CpG-ts
+        # where A, C, G, T is counts of individual nucleotides,
+        #       #2 describes IUPAC bases with 2 possible values
+        #       #3 describes IUPAC bases with 3 possible values
+        #       #4 describes IUPAC bases with 4 possible values (N)
+        #       #CpG CG pair (revcom aware)
+        #       #tv transversion - the other possible [AGTC]<=>[AGTC] ajdacent pairs
+        #       #ts transition ie. adacent A<=>G or C<=>T
+        #       #CpG-ts CG pair (revcom aware) but allowing transitions in 1st (and/or 2nd) base
+        seqtk in.fa
