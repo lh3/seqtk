@@ -1353,7 +1353,7 @@ int stk_seq(int argc, char *argv[])
 	khash_t(reg) *h = 0;
 	krand_t *kr = 0;
 
-	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:cVUX:SF:")) >= 0) {
+	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:cVUX:SF:x")) >= 0) {
 		switch (c) {
 			case 'a':
 			case 'A': flag |= 1; break;
@@ -1366,6 +1366,7 @@ int stk_seq(int argc, char *argv[])
 			case 'N': flag |= 128; break;
 			case 'U': flag |= 256; break;
 			case 'S': flag |= 512; break;
+			case 'x': flag |= 1024; break;
 			case 'M': h = stk_reg_read(optarg); break;
 			case 'n': mask_chr = *optarg; break;
 			case 'Q': qual_shift = atoi(optarg); break;
@@ -1401,6 +1402,7 @@ int stk_seq(int argc, char *argv[])
 		fprintf(stderr, "         -2        output the 2n reads only\n");
 		fprintf(stderr, "         -V        shift quality by '(-Q) - 33'\n");
 		fprintf(stderr, "         -U        convert all bases to uppercases\n");
+		fprintf(stderr, "         -x        convert all lowercases to -n\n");
 		fprintf(stderr, "         -S        strip of white spaces in sequences\n");
 		fprintf(stderr, "\n");
 		free(kr);
@@ -1449,6 +1451,9 @@ int stk_seq(int argc, char *argv[])
 		if (flag & 256) // option -U: convert to uppercases
 			for (i = 0; i < seq->seq.l; ++i)
 				seq->seq.s[i] = toupper(seq->seq.s[i]);
+		else if ((flag & 1024) && mask_chr > 0)
+			for (i = 0; i < seq->seq.l; ++i)
+				seq->seq.s[i] = islower(seq->seq.s[i])? mask_chr : seq->seq.s[i];
 		if (flag & 1) seq->qual.l = 0; // option -a: fastq -> fasta
 		else if (fake_qual >= 33 && fake_qual <= 127) {
 			if (seq->qual.m < seq->seq.m) {
