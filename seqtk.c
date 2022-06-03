@@ -40,7 +40,7 @@ KSEQ_INIT(gzFile, gzread)
 
 typedef struct {
 	int n, m;
-	uint64_t *a;
+	uint64_t *a; // of size m * 2, (beg, end) pair
 	int8_t *rev;
 } reglist_t;
 
@@ -62,7 +62,8 @@ reghash_t *stk_reg_read_alt(const char *fn)
 	if (fp == 0) return 0;
 	ks = ks_init(fp);
 	while (ks_getuntil(ks, KS_SEP_LINE, &str, &dret) >= 0) {
-		int i, c, st = -1, en = -1, rev = 0;
+		int64_t beg = -1, end = -1;
+		int i, c, rev = 0;
 		char *p, *q;
 		reglist_t *r;
 		khint_t k;
@@ -71,11 +72,11 @@ reghash_t *stk_reg_read_alt(const char *fn)
 				c = *p;
 				*p = 0;
 				if (i == 1) {
-					if (isdigit(*q)) st = strtol(q, &q, 10);
-					if (q != p) st = -1;
+					if (isdigit(*q)) beg = strtol(q, &q, 10);
+					if (q != p) beg = -1;
 				} else if (i == 2) {
-					if (isdigit(*q)) en = strtol(q, &q, 10);
-					if (q != p) en = -1;
+					if (isdigit(*q)) end = strtol(q, &q, 10);
+					if (q != p) end = -1;
 				} else if (i == 5) {
 					if (*q == '+') rev = 1;
 					else if (*q == '-') rev = -1;
@@ -93,14 +94,15 @@ reghash_t *stk_reg_read_alt(const char *fn)
 			memset(&kh_val(h, k), 0, sizeof(reglist_t));
 		}
 		r = &kh_val(h, k);
-		if (en < 0 && st > 0) en = st, st = st - 1; // if there is only one column
-		if (st < 0) st = 0, en = INT_MAX;
+		if (end < 0 && beg > 0) end = beg, beg = beg - 1; // if there is only one column
+		if (beg < 0) beg = 0, end = INT64_MAX;
 		if (r->n == r->m) {
 			r->m = r->m? r->m<<1 : 4;
-			r->a = (uint64_t*)realloc(r->a, r->m * 8);
+			r->a = (uint64_t*)realloc(r->a, r->m * 16);
 			r->rev = (int8_t*)realloc(r->rev, r->m);
 		}
-		r->a[r->n] = (uint64_t)st<<32 | en;
+		r->a[r->n<<1] = (uint64_t)beg;
+		r->a[r->n<<1|1] = (uint64_t)end;
 		r->rev[r->n++] = rev;
 	}
 	ks_destroy(ks);
@@ -122,7 +124,7 @@ reghash_t *stk_reg_read(const char *fn)
 	ks = ks_init(fp);
 	str = calloc(1, sizeof(kstring_t));
 	while (ks_getuntil(ks, 0, str, &dret) >= 0) {
-		int beg = -1, end = -1;
+		int64_t beg = -1, end = -1;
 		reglist_t *p;
 		khint_t k = kh_get(reg, h, str->s);
 		if (k == kh_end(h)) {
@@ -134,10 +136,10 @@ reghash_t *stk_reg_read(const char *fn)
 		p = &kh_val(h, k);
 		if (dret != '\n') {
 			if (ks_getuntil(ks, 0, str, &dret) > 0 && isdigit(str->s[0])) {
-				beg = atoi(str->s);
+				beg = atol(str->s);
 				if (dret != '\n') {
 					if (ks_getuntil(ks, 0, str, &dret) > 0 && isdigit(str->s[0])) {
-						end = atoi(str->s);
+						end = atol(str->s);
 						if (end < 0) end = -1;
 					}
 				}
@@ -146,12 +148,14 @@ reghash_t *stk_reg_read(const char *fn)
 		// skip the rest of the line
 		if (dret != '\n') while ((dret = ks_getc(ks)) > 0 && dret != '\n');
 		if (end < 0 && beg > 0) end = beg, beg = beg - 1; // if there is only one column
-		if (beg < 0) beg = 0, end = INT_MAX;
+		if (beg < 0) beg = 0, end = INT64_MAX;
 		if (p->n == p->m) {
 			p->m = p->m? p->m<<1 : 4;
-			p->a = realloc(p->a, p->m * 8);
+			p->a = realloc(p->a, p->m * 16);
 		}
-		p->a[p->n++] = (uint64_t)beg<<32 | end;
+		p->a[p->n<<1] = (uint64_t)beg;
+		p->a[p->n<<1|1] = (uint64_t)end;
+		p->n++;
 	}
 	ks_destroy(ks);
 	gzclose(fp);
@@ -232,7 +236,7 @@ char comp_tab[] = {
 static void stk_printstr(FILE *fp, const kstring_t *s, unsigned line_len)
 {
 	if (line_len != UINT_MAX && line_len != 0) {
-		int i, rest = s->l;
+		int64_t i, rest = s->l;
 		for (i = 0; i < s->l; i += line_len, rest -= line_len) {
 			fputc('\n', fp);
 			if (rest > line_len) fwrite(s->s + i, 1, line_len, fp);
@@ -311,27 +315,27 @@ krint64_t kr_rand(krand_t *kr)
 {
 	krint64_t x;
 	static const krint64_t mag01[2] = { 0, 0xB5026F5AA96619E9ULL };
-    if (kr->mti >= KR_NN) {
+	if (kr->mti >= KR_NN) {
 		int i;
 		if (kr->mti == KR_NN + 1) kr_srand0(5489ULL, kr);
-        for (i = 0; i < KR_NN - KR_MM; ++i) {
-            x = (kr->mt[i] & KR_UM) | (kr->mt[i+1] & KR_LM);
-            kr->mt[i] = kr->mt[i + KR_MM] ^ (x>>1) ^ mag01[(int)(x&1)];
-        }
-        for (; i < KR_NN - 1; ++i) {
-            x = (kr->mt[i] & KR_UM) | (kr->mt[i+1] & KR_LM);
-            kr->mt[i] = kr->mt[i + (KR_MM - KR_NN)] ^ (x>>1) ^ mag01[(int)(x&1)];
-        }
-        x = (kr->mt[KR_NN - 1] & KR_UM) | (kr->mt[0] & KR_LM);
-        kr->mt[KR_NN - 1] = kr->mt[KR_MM - 1] ^ (x>>1) ^ mag01[(int)(x&1)];
-        kr->mti = 0;
-    }
-    x = kr->mt[kr->mti++];
-    x ^= (x >> 29) & 0x5555555555555555ULL;
-    x ^= (x << 17) & 0x71D67FFFEDA60000ULL;
-    x ^= (x << 37) & 0xFFF7EEE000000000ULL;
-    x ^= (x >> 43);
-    return x;
+		for (i = 0; i < KR_NN - KR_MM; ++i) {
+			x = (kr->mt[i] & KR_UM) | (kr->mt[i+1] & KR_LM);
+			kr->mt[i] = kr->mt[i + KR_MM] ^ (x>>1) ^ mag01[(int)(x&1)];
+		}
+		for (; i < KR_NN - 1; ++i) {
+			x = (kr->mt[i] & KR_UM) | (kr->mt[i+1] & KR_LM);
+			kr->mt[i] = kr->mt[i + (KR_MM - KR_NN)] ^ (x>>1) ^ mag01[(int)(x&1)];
+		}
+		x = (kr->mt[KR_NN - 1] & KR_UM) | (kr->mt[0] & KR_LM);
+		kr->mt[KR_NN - 1] = kr->mt[KR_MM - 1] ^ (x>>1) ^ mag01[(int)(x&1)];
+		kr->mti = 0;
+	}
+	x = kr->mt[kr->mti++];
+	x ^= (x >> 29) & 0x5555555555555555ULL;
+	x ^= (x << 17) & 0x71D67FFFEDA60000ULL;
+	x ^= (x << 37) & 0xFFF7EEE000000000ULL;
+	x ^= (x >> 43);
+	return x;
 }
 
 #define kr_drand(_kr) ((kr_rand(_kr) >> 11) * (1.0/9007199254740992.0))
@@ -343,7 +347,8 @@ int stk_trimfq(int argc, char *argv[])
 	gzFile fp;
 	kseq_t *seq;
 	double param = 0.05, q_int2real[128];
-	int i, c, min_len = 30, left = 0, right = 0, fixed_len = -1;
+	int c, min_len = 30, left = 0, right = 0, fixed_len = -1;
+	int64_t i;
 	while ((c = getopt(argc, argv, "l:q:b:e:L:")) >= 0) {
 		switch (c) {
 			case 'q': param = atof(optarg); break;
@@ -374,7 +379,7 @@ int stk_trimfq(int argc, char *argv[])
 	for (i = 0; i < 128; ++i)
 		q_int2real[i] = pow(10., -(i - 33) / 10.);
 	while (kseq_read(seq) >= 0) {
-		int beg, tmp, end;
+		int64_t beg, tmp, end;
 		double s, max;
 		if (left || right || fixed_len > 0) {
 			beg = left; end = seq->seq.l - right;
@@ -424,7 +429,8 @@ int stk_comp(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int l, c, upper_only = 0;
+	int64_t l;
+	int c, upper_only = 0;
 	reghash_t *h = 0;
 	reglist_t dummy;
 
@@ -445,24 +451,25 @@ int stk_comp(int argc, char *argv[])
 		return 1;
 	}
 	seq = kseq_init(fp);
-	dummy.n= dummy.m = 1; dummy.a = calloc(1, 8);
+	dummy.n = dummy.m = 1; dummy.a = calloc(1, 16);
 	while ((l = kseq_read(seq)) >= 0) {
-		int i, k;
+		int64_t i;
+		int k;
 		reglist_t *p = 0;
 		if (h) {
 			khint_t k = kh_get(reg, h, seq->name.s);
 			if (k != kh_end(h)) p = &kh_val(h, k);
 		} else {
 			p = &dummy;
-			dummy.a[0] = l;
+			dummy.a[1] = l;
 		}
 		for (k = 0; p && k < p->n; ++k) {
-			int beg = p->a[k]>>32, end = p->a[k]&0xffffffff;
-			int la, lb, lc, na, nb, nc, cnt[11];
+			int64_t beg = p->a[k<<1], end = p->a[k<<1|1], cnt[11];
+			int la, lb, lc, na, nb, nc;
 			if (beg > 0) la = seq->seq.s[beg-1], lb = seq_nt16_table[la], lc = bitcnt_table[lb];
 			else la = 'a', lb = -1, lc = 0;
 			na = seq->seq.s[beg]; nb = seq_nt16_table[na]; nc = bitcnt_table[nb];
-			memset(cnt, 0, 11 * sizeof(int));
+			memset(cnt, 0, 11 * sizeof(int64_t));
 			for (i = beg; i < end; ++i) {
 				int is_CpG = 0, a, b, c;
 				a = na; b = nb; c = nc;
@@ -486,9 +493,9 @@ int stk_comp(int argc, char *argv[])
 				}
 				la = a; lb = b; lc = c;
 			}
-			if (h) printf("%s\t%d\t%d", seq->name.s, beg, end);
-			else printf("%s\t%d", seq->name.s, l);
-			for (i = 0; i < 11; ++i) printf("\t%d", cnt[i]);
+			if (h) printf("%s\t%ld\t%ld", seq->name.s, beg, end);
+			else printf("%s\t%ld", seq->name.s, l);
+			for (i = 0; i < 11; ++i) printf("\t%ld", cnt[i]);
 			putchar('\n');
 		}
 		fflush(stdout);
@@ -503,7 +510,7 @@ int stk_randbase(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int l;
+	int64_t l;
 	if (argc == 1) {
 		fprintf(stderr, "Usage: seqtk randbase <in.fa>\n");
 		return 1;
@@ -515,7 +522,7 @@ int stk_randbase(int argc, char *argv[])
 	}
 	seq = kseq_init(fp);
 	while ((l = kseq_read(seq)) >= 0) {
-		int i;
+		int64_t i;
 		printf(">%s", seq->name.s);
 		for (i = 0; i < l; ++i) {
 			int c, b, a, j, k, m;
@@ -545,9 +552,10 @@ int stk_hety(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int l, c, win_size = 50000, n_start = 5, win_step, is_lower_mask = 0;
+	int64_t l;
+	int c, win_size = 50000, n_start = 5, win_step, is_lower_mask = 0;
 	char *buf;
-	uint32_t cnt[3];
+	uint64_t cnt[3];
 	if (argc == 1) {
 		fprintf(stderr, "\n");
 		fprintf(stderr, "Usage:   seqtk hety [options] <in.fa>\n\n");
@@ -559,9 +567,9 @@ int stk_hety(int argc, char *argv[])
 	}
 	while ((c = getopt(argc, argv, "w:t:m")) >= 0) {
 		switch (c) {
-		case 'w': win_size = atoi(optarg); break;
-		case 't': n_start = atoi(optarg); break;
-		case 'm': is_lower_mask = 1; break;
+			case 'w': win_size = atoi(optarg); break;
+			case 't': n_start = atoi(optarg); break;
+			case 'm': is_lower_mask = 1; break;
 		}
 	}
 	fp = (strcmp(argv[optind], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[optind], "r");
@@ -573,7 +581,7 @@ int stk_hety(int argc, char *argv[])
 	win_step = win_size / n_start;
 	buf = calloc(win_size, 1);
 	while ((l = kseq_read(seq)) >= 0) {
-		int x, i, y, z, next = 0;
+		int64_t x, i, y, z, next = 0;
 		cnt[0] = cnt[1] = cnt[2] = 0;
 		for (i = 0; i <= l; ++i) {
 			if ((i >= win_size && i % win_step == 0) || i == l) {
@@ -581,7 +589,7 @@ int stk_hety(int argc, char *argv[])
 					for (y = l - win_size; y < next; ++y) --cnt[(int)buf[y % win_size]];
 				}
 				if (cnt[1] + cnt[2] > 0)
-					printf("%s\t%d\t%d\t%.2lf\t%d\t%d\n", seq->name.s, next, i,
+					printf("%s\t%ld\t%ld\t%.2lf\t%ld\t%ld\n", seq->name.s, next, i,
 						   (double)cnt[2] / (cnt[1] + cnt[2]) * win_size, cnt[1] + cnt[2], cnt[2]);
 				next = i;
 			}
@@ -607,14 +615,15 @@ int stk_gap(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int len, c, min_size = 50;
+	int64_t len;
+	int c, min_size = 50;
 	if (argc == 1) {
 		fprintf(stderr, "Usage: seqtk gap [-l %d] <in.fa>\n", min_size);
 		return 1;
 	}
 	while ((c = getopt(argc, argv, "l:")) >= 0) {
 		switch (c) {
-		case 'l': min_size = atoi(optarg); break;
+			case 'l': min_size = atoi(optarg); break;
 		}
 	}
 	fp = (strcmp(argv[optind], "-") == 0)? gzdopen(fileno(stdin), "r") : gzopen(argv[optind], "r");
@@ -624,12 +633,12 @@ int stk_gap(int argc, char *argv[])
 	}
 	seq = kseq_init(fp);
 	while ((len = kseq_read(seq)) >= 0) {
-		int i, l;
+		int64_t i, l;
 		for (i = l = 0; i <= len; ++i) {
 			c = i < len? seq_nt6_table[(uint8_t)seq->seq.s[i]] : 5;
 			if (i == len || (c >= 1 && c <= 4)) {
 				if (l > 0 && l >= min_size)
-					printf("%s\t%d\t%d\n", seq->name.s, i - l, i);
+					printf("%s\t%ld\t%ld\n", seq->name.s, i - l, i);
 				l = 0;
 			} else ++l;
 		}
@@ -646,15 +655,15 @@ int stk_subseq(int argc, char *argv[])
 	khash_t(reg) *h = kh_init(reg);
 	gzFile fp;
 	kseq_t *seq;
-	int l, i, j, c, is_tab = 0, line = 0, do_strand = 0;
+	int64_t l, i, j, seq_max = 0;
+	int c, is_tab = 0, line = 0, do_strand = 0;
 	char *seq_buf = 0;
-	uint32_t seq_max = 0;
 	khint_t k;
 	while ((c = getopt(argc, argv, "tl:s")) >= 0) {
 		switch (c) {
-		case 't': is_tab = 1; break;
-		case 's': do_strand = 1; break;
-		case 'l': line = atoi(optarg); break;
+			case 't': is_tab = 1; break;
+			case 's': do_strand = 1; break;
+			case 'l': line = atoi(optarg); break;
 		}
 	}
 	if (optind + 2 > argc) {
@@ -685,26 +694,26 @@ int stk_subseq(int argc, char *argv[])
 		if (k == kh_end(h)) continue;
 		p = &kh_val(h, k);
 		for (i = 0; i < p->n; ++i) {
-			int beg = p->a[i]>>32, end = p->a[i];
+			int64_t beg = p->a[i<<1], end = p->a[i<<1|1];
 			if (beg >= seq->seq.l) {
-				fprintf(stderr, "[subseq] %s: %d >= %ld\n", seq->name.s, beg, seq->seq.l);
+				fprintf(stderr, "[subseq] %s: %ld >= %ld\n", seq->name.s, beg, seq->seq.l);
 				continue;
 			}
 			if (end > seq->seq.l) end = seq->seq.l;
 			if (is_tab == 0) {
 				printf("%c%s", seq->qual.l == seq->seq.l? '@' : '>', seq->name.s);
-				if (beg > 0 || (int)p->a[i] != INT_MAX) {
-					if (end == INT_MAX) {
-						if (beg) printf(":%d", beg+1);
-					} else printf(":%d-%d", beg+1, end);
+				if (beg > 0 || (int64_t)p->a[i<<1|1] != INT64_MAX) {
+					if (end == INT64_MAX) {
+						if (beg) printf(":%ld", beg+1);
+					} else printf(":%ld-%ld", beg+1, end);
 				}
 				if (seq->comment.l) printf(" %s", seq->comment.s);
-			} else printf("%s\t%d\t", seq->name.s, beg + 1);
+			} else printf("%s\t%ld\t", seq->name.s, beg + 1);
 			if (end > seq->seq.l) end = seq->seq.l;
 			if (do_strand && p->rev) { // TODO: the strand mode only works with FASTA
 				if (end - beg >= seq_max) {
 					seq_max = end - beg;
-					kroundup32(seq_max);
+					kroundup64(seq_max);
 					seq_buf = (char*)realloc(seq_buf, seq_max);
 				}
 				if (p->rev[i] < 0)
@@ -743,7 +752,8 @@ int stk_mergefa(int argc, char *argv[])
 {
 	gzFile fp[2];
 	kseq_t *seq[2];
-	int i, l, c, is_intersect = 0, is_haploid = 0, qual = 0, is_mask = 0, is_randhet = 0;
+	int i, c, is_intersect = 0, is_haploid = 0, qual = 0, is_mask = 0, is_randhet = 0;
+	int64_t l;
 	uint64_t cnt[5];
 	while ((c = getopt(argc, argv, "himrq:")) >= 0) {
 		switch (c) {
@@ -778,7 +788,8 @@ int stk_mergefa(int argc, char *argv[])
 	cnt[0] = cnt[1] = cnt[2] = cnt[3] = cnt[4] = 0;
 	srand48(11);
 	while (kseq_read(seq[0]) >= 0) {
-		int min_l, c[2], b[2], is_upper;
+		int64_t min_l;
+		int c[2], b[2], is_upper;
 		kseq_read(seq[1]);
 		if (strcmp(seq[0]->name.s, seq[1]->name.s))
 			fprintf(stderr, "[%s] Different sequence names: %s != %s\n", __func__, seq[0]->name.s, seq[1]->name.s);
@@ -846,7 +857,8 @@ int stk_famask(int argc, char *argv[])
 {
 	gzFile fp[2];
 	kseq_t *seq[2];
-	int i, l, c;
+	int i, c;
+	int64_t l;
 	while ((c = getopt(argc, argv, "")) >= 0);
 	if (argc - optind < 2) {
 		fprintf(stderr, "Usage: seqtk famask <src.fa> <mask.fa>\n");
@@ -861,7 +873,8 @@ int stk_famask(int argc, char *argv[])
 		return 1;
 	}
 	while (kseq_read(seq[0]) >= 0) {
-		int min_l, c[2];
+		int64_t min_l;
+		int c[2];
 		kseq_read(seq[1]);
 		if (strcmp(seq[0]->name.s, seq[1]->name.s))
 			fprintf(stderr, "[%s] Different sequence names: %s != %s\n", __func__, seq[0]->name.s, seq[1]->name.s);
@@ -887,7 +900,8 @@ int stk_mutfa(int argc, char *argv[])
 	gzFile fp;
 	kseq_t *seq;
 	kstream_t *ks;
-	int l, i, dret;
+	int64_t l, i;
+	int dret;
 	kstring_t *str;
 	khint_t k;
 	if (argc < 3) {
@@ -906,7 +920,8 @@ int stk_mutfa(int argc, char *argv[])
 	ks = ks_init(fp);
 	while (ks_getuntil(ks, 0, str, &dret) >= 0) {
 		char *s = strdup(str->s);
-		int beg = 0, ret;
+		int64_t beg = 0;
+		int ret;
 		reglist_t *p;
 		k = kh_get(reg, h, s);
 		if (k == kh_end(h)) {
@@ -922,9 +937,11 @@ int stk_mutfa(int argc, char *argv[])
 		if (isalpha(str->s[0]) && str->l == 1) {
 			if (p->n == p->m) {
 				p->m = p->m? p->m<<1 : 4;
-				p->a = realloc(p->a, p->m * 8);
+				p->a = realloc(p->a, p->m * 16);
 			}
-			p->a[p->n++] = (uint64_t)beg<<32 | str->s[0];
+			p->a[p->n<<1] = (uint64_t)beg;
+			p->a[p->n<<1|1] = (uint64_t)str->s[0];
+			p->n++;
 		}
 	}
 	ks_destroy(ks);
@@ -943,9 +960,9 @@ int stk_mutfa(int argc, char *argv[])
 		if (k != kh_end(h)) {
 			p = &kh_val(h, k);
 			for (i = 0; i < p->n; ++i) {
-				int beg = p->a[i]>>32;
+				int64_t beg = p->a[i<<1];
 				if (beg < seq->seq.l)
-					seq->seq.s[beg] = (int)p->a[i];
+					seq->seq.s[beg] = (int)p->a[i<<1|1];
 			}
 		}
 		printf(">%s", seq->name.s);
@@ -972,7 +989,7 @@ int stk_listhet(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int i, l;
+	int64_t l, i;
 	if (argc == 1) {
 		fprintf(stderr, "Usage: seqtk listhet <in.fa>\n");
 		return 1;
@@ -987,7 +1004,7 @@ int stk_listhet(int argc, char *argv[])
 		for (i = 0; i < l; ++i) {
 			int b = seq->seq.s[i];
 			if (bitcnt_table[seq_nt16_table[b]] == 2)
-				printf("%s\t%d\t%c\n", seq->name.s, i+1, b);
+				printf("%s\t%ld\t%c\n", seq->name.s, i+1, b);
 		}
 	}
 	kseq_destroy(seq);
@@ -999,7 +1016,8 @@ int stk_split(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int c, i, l, n = 10, len = 0;
+	int64_t l;
+	int c, i, n = 10, len = 0;
 	char *prefix, *fn;
 	FILE **out;
 	while ((c = getopt(argc, argv, "n:l:")) >= 0) {
@@ -1047,12 +1065,12 @@ int stk_split(int argc, char *argv[])
 static int cutN_min_N_tract = 1000;
 static int cutN_nonN_penalty = 10;
 
-static int find_next_cut(const kseq_t *ks, int k, int *begin, int *end)
+static int64_t find_next_cut(const kseq_t *ks, int64_t k, int64_t *begin, int64_t *end)
 {
-	int i, b, e;
+	int64_t i, b, e;
 	while (k < ks->seq.l) {
 		if (seq_nt16_table[(int)ks->seq.s[k]] == 15) {
-			int score, max;
+			int64_t score, max;
 			score = 0; e = max = -1;
 			for (i = k; i < ks->seq.l && score >= 0; ++i) { /* forward */
 				if (seq_nt16_table[(int)ks->seq.s[i]] == 15) ++score;
@@ -1075,11 +1093,11 @@ static int find_next_cut(const kseq_t *ks, int k, int *begin, int *end)
 	}
 	return -1;
 }
-static void print_seq(FILE *fpout, const kseq_t *ks, int begin, int end)
+static void print_seq(FILE *fpout, const kseq_t *ks, int64_t begin, int64_t end)
 {
-	int i;
+	int64_t i;
 	if (begin >= end) return; // FIXME: why may this happen? Understand it!
-	fprintf(fpout, "%c%s:%d-%d", ks->qual.l? '@' : '>', ks->name.s, begin+1, end);
+	fprintf(fpout, "%c%s:%ld-%ld", ks->qual.l? '@' : '>', ks->name.s, begin+1, end);
 	for (i = begin; i < end && i < ks->seq.l; ++i) {
 		if ((i - begin)%60 == 0) fputc('\n', fpout);
 		fputc(ks->seq.s[i], fpout);
@@ -1095,15 +1113,16 @@ static void print_seq(FILE *fpout, const kseq_t *ks, int begin, int end)
 }
 int stk_cutN(int argc, char *argv[])
 {
-	int c, l, gap_only = 0;
+	int64_t l;
+	int c, gap_only = 0;
 	gzFile fp;
 	kseq_t *ks;
 	while ((c = getopt(argc, argv, "n:p:g")) >= 0) {
 		switch (c) {
-		case 'n': cutN_min_N_tract = atoi(optarg); break;
-		case 'p': cutN_nonN_penalty = atoi(optarg); break;
-		case 'g': gap_only = 1; break;
-		default: return 1;
+			case 'n': cutN_min_N_tract = atoi(optarg); break;
+			case 'p': cutN_nonN_penalty = atoi(optarg); break;
+			case 'g': gap_only = 1; break;
+			default: return 1;
 		}
 	}
 	if (argc == optind) {
@@ -1121,10 +1140,10 @@ int stk_cutN(int argc, char *argv[])
 	}
 	ks = kseq_init(fp);
 	while ((l = kseq_read(ks)) >= 0) {
-		int k = 0, begin = 0, end = 0;
+		int64_t k = 0, begin = 0, end = 0;
 		while (find_next_cut(ks, k, &begin, &end) >= 0) {
 			if (begin != 0) {
-				if (gap_only) printf("%s\t%d\t%d\n", ks->name.s, begin, end);
+				if (gap_only) printf("%s\t%ld\t%ld\n", ks->name.s, begin, end);
 				else print_seq(stdout, ks, k, begin);
 			}
 			k = end;
@@ -1140,7 +1159,8 @@ int stk_hrun(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *ks;
-	int min_len = 7, l = 0, c = 0, beg = 0, i;
+	int min_len = 7, c = 0;
+	int64_t l = 0, beg = 0, i;
 	if (argc == optind) {
 		fprintf(stderr, "Usage: seqtk hrun <in.fa> [minLen=%d]\n", min_len);
 		return 1;
@@ -1156,12 +1176,12 @@ int stk_hrun(int argc, char *argv[])
 		c = ks->seq.s[0]; l = 1; beg = 0;
 		for (i = 1; i < ks->seq.l; ++i) {
 			if (ks->seq.s[i] != c) {
-				if (l >= min_len) printf("%s\t%d\t%d\t%c\n", ks->name.s, beg, beg + l, c);
+				if (l >= min_len) printf("%s\t%ld\t%ld\t%c\n", ks->name.s, beg, beg + l, c);
 				c = ks->seq.s[i]; l = 1; beg = i;
 			} else ++l;
 		}
 	}
-	if (l >= min_len) printf("%s\t%d\t%d\t%c\n", ks->name.s, beg, beg + l, c);
+	if (l >= min_len) printf("%s\t%ld\t%ld\t%c\n", ks->name.s, beg, beg + l, c);
 	kseq_destroy(ks);
 	gzclose(fp);
 	return 0;
@@ -1174,7 +1194,7 @@ static void cpy_kstr(kstring_t *dst, const kstring_t *src)
 	if (src->l == 0) return;
 	if (src->l + 1 > dst->m) {
 		dst->m = src->l + 1;
-		kroundup32(dst->m);
+		kroundup64(dst->m);
 		dst->s = realloc(dst->s, dst->m);
 	}
 	dst->l = src->l;
@@ -1300,7 +1320,7 @@ int stk_sample(int argc, char *argv[])
 
 void stk_mask(kseq_t *seq, const khash_t(reg) *h, int is_complement, int mask_chr)
 {
-	unsigned i, j;
+	int64_t i, j;
 	khiter_t k;
 	k = kh_get(reg, h, seq->name.s);
 	if (k == kh_end(h)) { // not found in the hash table
@@ -1317,7 +1337,7 @@ void stk_mask(kseq_t *seq, const khash_t(reg) *h, int is_complement, int mask_ch
 		reglist_t *p = &kh_val(h, k);
 		if (!is_complement) {
 			for (i = 0; i < p->n; ++i) {
-				unsigned beg = p->a[i]>>32, end = p->a[i];
+				int64_t beg = p->a[i<<1], end = p->a[i<<1|1];
 				if (beg >= seq->seq.l) continue;
 				if (end > seq->seq.l) end = seq->seq.l;
 				if (!mask_chr) for (j = beg; j < end; ++j) seq->seq.s[j] = tolower(seq->seq.s[j]);
@@ -1326,7 +1346,7 @@ void stk_mask(kseq_t *seq, const khash_t(reg) *h, int is_complement, int mask_ch
 		} else {
 			int8_t *mask = calloc(seq->seq.l, 1);
 			for (i = 0; i < p->n; ++i) {
-				unsigned beg = p->a[i]>>32, end = p->a[i];
+				int64_t beg = p->a[i<<1], end = p->a[i<<1|1];    
 				if (end >= seq->seq.l) end = seq->seq.l;
 				for (j = beg; j < end; ++j) mask[j] = 1;
 			}
@@ -1347,8 +1367,8 @@ int stk_seq(int argc, char *argv[])
 	gzFile fp;
 	kseq_t *seq;
 	int c, qual_thres = 0, flag = 0, qual_shift = 33, mask_chr = 0, min_len = 0, max_q = 255, fake_qual = -1;
-	unsigned i, line_len = 0;
-	int64_t n_seqs = 0;
+	unsigned line_len = 0;
+	int64_t i, n_seqs = 0;
 	double frac = 1.;
 	khash_t(reg) *h = 0;
 	krand_t *kr = 0;
@@ -1425,7 +1445,7 @@ int stk_seq(int argc, char *argv[])
 			if ((flag&32) && (n_seqs&1) == 1) continue;
 		}
 		if (flag & 512) { // option -S: squeeze out white spaces
-			int k;
+			int64_t k;
 			if (seq->qual.l) {
 				for (i = k = 0; i < seq->seq.l; ++i)
 					if (!isspace(seq->seq.s[i]))
@@ -1529,7 +1549,7 @@ int stk_gc(int argc, char *argv[])
 	}
 	seq = kseq_init(fp);
 	while (kseq_read(seq) >= 0) {
-		int i, start = 0, max_i = 0, n_hits = 0, start_hits = 0, max_hits = 0;
+		int64_t i, start = 0, max_i = 0, n_hits = 0, start_hits = 0, max_hits = 0;
 		double sc = 0., max = 0.;
 		for (i = 0; i < seq->seq.l; ++i) {
 			int hit;
@@ -1545,14 +1565,14 @@ int stk_gc(int argc, char *argv[])
 				sc += -1.0f;
 				if (sc < 0 || max - sc > xdropoff) {
 					if (max_i + 1 - start >= min_l)
-						printf("%s\t%d\t%d\t%d\n", seq->name.s, start, max_i + 1, max_hits - start_hits + 1);
+						printf("%s\t%ld\t%ld\t%ld\n", seq->name.s, start, max_i + 1, max_hits - start_hits + 1);
 					sc = max = 0;
 					i = max_i;
 				}
 			}
 		}
 		if (max > 0. && max_i + 1 - start >= min_l)
-			printf("%s\t%d\t%d\t%d\n", seq->name.s, start, max_i + 1, max_hits - start_hits + 1);
+			printf("%s\t%ld\t%ld\t%ld\n", seq->name.s, start, max_i + 1, max_hits - start_hits + 1);
 	}
 	kseq_destroy(seq);
 	gzclose(fp);
@@ -1635,7 +1655,7 @@ static inline int kputc(int c, kstring_t *s)
 	if (s->l + 1 >= s->m) {
 		char *tmp;
 		s->m = s->l + 2;
-		kroundup32(s->m);
+		kroundup64(s->m);
 		if ((tmp = (char*)realloc(s->s, s->m)))
 			s->s = tmp;
 		else
@@ -1664,7 +1684,7 @@ int stk_hpc(int argc, char *argv[])
 	seq = kseq_init(fp);
 
 	while (kseq_read(seq) >= 0) {
-		int i, last;
+		int64_t i, last;
 		str.l = 0;
 		if (seq->seq.l == 0) continue;
 		for (i = 1, last = 0; i <= seq->seq.l; ++i) {
@@ -1735,7 +1755,8 @@ int stk_kfreq(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *ks;
-	int kmer, i, l, mask;
+	int64_t i;
+	int kmer, l, mask;
 	char *nei;
 
 	if (argc < 2) {
@@ -1768,8 +1789,10 @@ int stk_kfreq(int argc, char *argv[])
 	}
 	ks = kseq_init(fp);
 	while (kseq_read(ks) >= 0) {
-		int k, x[2], cnt[2], cnt_nei[2], which;
-		x[0] = x[1] = k = cnt[0] = cnt[1] = cnt_nei[0] = cnt_nei[1] = 0;
+		int k, x[2], which;
+		int64_t cnt[2], cnt_nei[2];
+		x[0] = x[1] = k = 0;
+		cnt[0] = cnt[1] = cnt_nei[0] = cnt_nei[1] = 0;
 		for (i = 0; i < ks->seq.l; ++i) {
 			int c = seq_nt6_table[(int)ks->seq.s[i]];
 			if (c >= 1 && c <= 4) {
@@ -1785,7 +1808,7 @@ int stk_kfreq(int argc, char *argv[])
 			} else k = 0;
 		}
 		which = cnt_nei[0] > cnt_nei[1]? 0 : 1;
-		printf("%s\t%ld\t%c\t%d\t%d\n", ks->name.s, ks->seq.l, "+-"[which], cnt_nei[which], cnt[which]);
+		printf("%s\t%ld\t%c\t%ld\t%ld\n", ks->name.s, ks->seq.l, "+-"[which], cnt_nei[which], cnt[which]);
 	}
 	kseq_destroy(ks);
 	gzclose(fp);
@@ -1798,13 +1821,13 @@ typedef struct {
 	int64_t q[94], b[5];
 } posstat_t;
 
-static void fqc_aux(posstat_t *p, int pos, int64_t allq[94], double perr[94], int qthres)
+static void fqc_aux(posstat_t *p, int64_t pos, int64_t allq[94], double perr[94], int qthres)
 {
 	int k;
 	int64_t sum = 0, qsum = 0, sum_low = 0;
 	double psum = 0;
 	if (pos <= 0) printf("ALL");
-	else printf("%d", pos);
+	else printf("%ld", pos);
 	for (k = 0; k <= 4; ++k) sum += p->b[k];
 	printf("\t%lld", (long long)sum);
 	for (k = 0; k <= 4; ++k)
@@ -1825,8 +1848,8 @@ int stk_fqchk(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
-	int i, c, k, max_len = 0, min_len = 0x7fffffff, max_alloc = 0, offset = 33, n_diffQ = 0, qthres = 20;
-	int64_t tot_len = 0, n = 0;
+	int c, k, offset = 33, n_diffQ = 0, qthres = 20;
+	int64_t i, tot_len = 0, n = 0, max_len = 0, min_len = INT64_MAX, max_alloc = 0;
 	double perr[94];
 	posstat_t all, *pos = 0;
 
@@ -1856,7 +1879,7 @@ int stk_fqchk(int argc, char *argv[])
 		if (max_len > max_alloc) {
 			int old_max = max_alloc;
 			max_alloc = max_len;
-			kroundup32(max_alloc);
+			kroundup64(max_alloc);
 			pos = realloc(pos, max_alloc * sizeof(posstat_t));
 			memset(&pos[old_max], 0, (max_alloc - old_max) * sizeof(posstat_t));
 		}
@@ -1881,7 +1904,7 @@ int stk_fqchk(int argc, char *argv[])
 	}
 	for (k = n_diffQ = 0; k <= 93; ++k)
 		if (all.q[k]) ++n_diffQ;
-	printf("min_len: %d; max_len: %d; avg_len: %.2f; %d distinct quality values\n", min_len, max_len, (double)tot_len/n, n_diffQ);
+	printf("min_len: %ld; max_len: %ld; avg_len: %.2f; %d distinct quality values\n", min_len, max_len, (double)tot_len/n, n_diffQ);
 	printf("POS\t#bases\t%%A\t%%C\t%%G\t%%T\t%%N\tavgQ\terrQ");
 	if (qthres <= 0) {
 		for (k = 0; k <= 93; ++k)
