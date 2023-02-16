@@ -1895,12 +1895,37 @@ int stk_fqchk(int argc, char *argv[])
 	return 0;
 }
 
+int stk_size(int argc, char *argv[])
+{
+	gzFile fp;
+	kseq_t *seq;
+	uint64_t n = 0, l = 0;
+	if (argc == 1 && isatty(fileno(stdin))) {
+		fprintf(stderr, "Usage: seqtk size <in.fq>\n");
+		return 1;
+	}
+	fp = argc > 1 && strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
+	seq = kseq_init(fp);
+	while (kseq_read(seq) >= 0) {
+		++n;
+		l += seq->seq.l;
+	}
+	kseq_destroy(seq);
+	gzclose(fp);
+	printf("%lld\t%lld\n", (long long)n, (long long)l);
+	return 0;
+}
+
 /* main function */
 static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.3-r117-dirty\n\n");
+	fprintf(stderr, "Version: 1.3-r119-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
@@ -1921,6 +1946,7 @@ static int usage()
 	fprintf(stderr, "         gap       get the gap locations\n");
 	fprintf(stderr, "         listhet   extract the position of each het\n");
 	fprintf(stderr, "         hpc       homopolyer-compressed sequence\n");
+	fprintf(stderr, "         size      report the number sequences and bases\n");
 	fprintf(stderr, "\n");
 	return 1;
 }
@@ -1950,6 +1976,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "rename") == 0) return stk_rename(argc-1, argv+1);
 	else if (strcmp(argv[1], "split") == 0) return stk_split(argc-1, argv+1);
 	else if (strcmp(argv[1], "hpc") == 0) return stk_hpc(argc-1, argv+1);
+	else if (strcmp(argv[1], "size") == 0) return stk_size(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[main] unrecognized command '%s'. Abort!\n", argv[1]);
 		return 1;
