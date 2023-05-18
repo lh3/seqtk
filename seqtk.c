@@ -1968,7 +1968,7 @@ int stk_telo(int argc, char *argv[])
 	}
 	seq = kseq_init(fp);
 	while (kseq_read(seq) >= 0) {
-		ssize_t i, l, max_i = -1;
+		ssize_t i, l, max_i = -1, st = 0;
 		int64_t score, max;
 		sum_input += seq->seq.l;
 		score = max = 0, max_i = -1;
@@ -1986,9 +1986,10 @@ int stk_telo(int argc, char *argv[])
 		if (max >= min_score) {
 			printf("%s\t0\t%ld\t%ld\n", seq->name.s, max_i + 1, seq->seq.l);
 			sum_telo += max_i + 1;
+			st = max_i + 1;
 		}
 		score = max = 0, max_i = -1;
-		for (i = seq->seq.l - 1, l = 0, x = 0; i >= 0; --i) {
+		for (i = seq->seq.l - 1, l = 0, x = 0; i >= st; --i) {
 			int hit = 0, c = seq_nt6_table[(uint8_t)seq->seq.s[i]];
 			if (c >= 1 && c <= 4) {
 				x = (x<<2 | (4-c)) & mask;
