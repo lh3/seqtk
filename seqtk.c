@@ -1950,7 +1950,7 @@ int stk_telo(int argc, char *argv[])
 	len = strlen(telo_seq);
 	mask = (1ULL<<2*len) - 1;
 
-	h = kh_init(64);
+	h = kh_init(64); // hash table for all roations of the telomere motif
 	kh_resize(64, h, len * 2);
 	for (i = 0; i < len; ++i) {
 		for (j = 0, x = 0; j < len; ++j) {
@@ -1972,13 +1972,13 @@ int stk_telo(int argc, char *argv[])
 		int64_t score, max;
 		sum_input += seq->seq.l;
 		score = max = 0, max_i = -1;
-		for (i = 0, l = 0, x = 0; i < seq->seq.l; ++i) {
+		for (i = 0, l = 0, x = 0; i < seq->seq.l; ++i) { // 5'-end, check CCCTAA
 			int hit = 0, c = seq_nt6_table[(uint8_t)seq->seq.s[i]];
-			if (c >= 1 && c <= 4) {
+			if (c >= 1 && c <= 4) { // not N
 				x = (x<<2 | (c-1)) & mask;
-				if (++l >= len && kh_get(64, h, x) != kh_end(h))
+				if (++l >= len && kh_get(64, h, x) != kh_end(h)) // x is at least 6bp long and is a telomere motif
 					hit = 1;
-			} else l = 0, x = 0;
+			} else l = 0, x = 0; // N, ambiguous base
 			if (i >= len) score += hit? 1 : -penalty;
 			if (score > max) max = score, max_i = i;
 			else if (max - score > max_drop) break;
@@ -1989,7 +1989,7 @@ int stk_telo(int argc, char *argv[])
 			st = max_i + 1;
 		}
 		score = max = 0, max_i = -1;
-		for (i = seq->seq.l - 1, l = 0, x = 0; i >= st; --i) {
+		for (i = seq->seq.l - 1, l = 0, x = 0; i >= st; --i) { // 3'-end; similar to the for loop above
 			int hit = 0, c = seq_nt6_table[(uint8_t)seq->seq.s[i]];
 			if (c >= 1 && c <= 4) {
 				x = (x<<2 | (4-c)) & mask;
