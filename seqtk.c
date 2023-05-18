@@ -1124,10 +1124,8 @@ int stk_cutN(int argc, char *argv[])
 	while ((l = kseq_read(ks)) >= 0) {
 		int k = 0, begin = 0, end = 0;
 		while (find_next_cut(ks, k, &begin, &end) >= 0) {
-			if (begin != 0) {
-				if (gap_only) printf("%s\t%d\t%d\n", ks->name.s, begin, end);
-				else print_seq(stdout, ks, k, begin);
-			}
+			if (gap_only) printf("%s\t%d\t%d\n", ks->name.s, begin, end);
+			else print_seq(stdout, ks, k, begin);
 			k = end;
 		}
 		if (!gap_only) print_seq(stdout, ks, k, l);
