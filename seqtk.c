@@ -459,9 +459,9 @@ int stk_comp(int argc, char *argv[])
 		}
 		for (k = 0; p && k < p->n; ++k) {
 			int beg = p->a[k]>>32, end = p->a[k]&0xffffffff;
-			int la, lb, lc, na, nb, nc, cnt[11];
-			if (beg > 0) la = seq->seq.s[beg-1], lb = seq_nt16_table[la], lc = bitcnt_table[lb];
-			else la = 'a', lb = -1, lc = 0;
+			int la, lb, na, nb, nc, cnt[11];
+			if (beg > 0) la = seq->seq.s[beg-1], lb = seq_nt16_table[la];
+			else la = 'a', lb = -1;
 			na = seq->seq.s[beg]; nb = seq_nt16_table[na]; nc = bitcnt_table[nb];
 			memset(cnt, 0, 11 * sizeof(int));
 			for (i = beg; i < end; ++i) {
@@ -485,7 +485,7 @@ int stk_comp(int argc, char *argv[])
 						if (b == 10 || b == 5) ++cnt[10];
 					}
 				}
-				la = a; lb = b; lc = c;
+				la = a; lb = b;
 			}
 			if (h) printf("%s\t%d\t%d", seq->name.s, beg, end);
 			else printf("%s\t%d", seq->name.s, l);
@@ -1983,7 +1983,7 @@ int stk_telo(int argc, char *argv[])
 			if (score > max) max = score, max_i = i;
 			else if (max - score > max_drop) break;
 		}
-		if (score >= min_score) {
+		if (max >= min_score) {
 			printf("%s\t0\t%ld\t%ld\n", seq->name.s, max_i + 1, seq->seq.l);
 			sum_telo += max_i + 1;
 		}
@@ -1999,7 +1999,7 @@ int stk_telo(int argc, char *argv[])
 			if (score > max) max = score, max_i = i;
 			else if (max - score > max_drop) break;
 		}
-		if (score >= min_score) {
+		if (max >= min_score) {
 			printf("%s\t%ld\t%ld\t%ld\n", seq->name.s, max_i, seq->seq.l, seq->seq.l);
 			sum_telo += seq->seq.l - max_i;
 		}
@@ -2016,7 +2016,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.3-r120-dirty\n\n");
+	fprintf(stderr, "Version: 1.3-r121-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         size      report the number sequences and bases\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
