@@ -1949,15 +1949,16 @@ int stk_telo(int argc, char *argv[])
 	gzFile fp;
 	kseq_t *seq;
 	char *telo_seq = "CCCTAA";
-	int c, i, j, len, absent, penalty = 1, max_drop = 2000, min_score = 300;
+	int c, i, j, len, absent, show_profile = 0, penalty = 1, max_drop = 2000, min_score = 300;
 	uint64_t x, mask, sum_input = 0, sum_telo = 0;
 	khash_t(64) *h;
 
-	while ((c = getopt(argc, argv, "m:p:d:s:")) >= 0) {
+	while ((c = getopt(argc, argv, "m:p:d:s:P")) >= 0) {
 		if (c == 'm') telo_seq = optarg;
 		else if (c == 'p') penalty = atoi(optarg);
 		else if (c == 'd') max_drop = atoi(optarg);
 		else if (c == 's') min_score = atoi(optarg);
+		else if (c == 'P') show_profile = 1;
 	}
 	if (penalty < 0) penalty = -penalty;
 	if (argc == optind && isatty(fileno(stdin))) {
@@ -1967,6 +1968,7 @@ int stk_telo(int argc, char *argv[])
 		fprintf(stderr, "  -p INT     penalty [%d]\n", penalty);
 		fprintf(stderr, "  -d INT     max drop [%d]\n", max_drop);
 		fprintf(stderr, "  -s INT     min score [%d]\n", min_score);
+		fprintf(stderr, "  -P         print scoring\n");
 		return 1;
 	}
 
@@ -2002,12 +2004,13 @@ int stk_telo(int argc, char *argv[])
 				if (++l >= len && kh_get(64, h, x) != kh_end(h)) // x is at least 6bp long and is a telomere motif
 					hit = 1;
 			} else l = 0, x = 0; // N, ambiguous base
+			if (show_profile) printf("P\t%s\t%d\t%d\t%d\n", seq->name.s, i, score, max);
 			if (i >= len) score += hit? 1 : -penalty;
 			if (score > max) max = score, max_i = i;
 			else if (max - score > max_drop) break;
 		}
 		if (max >= min_score) {
-			printf("%s\t0\t%ld\t%ld\n", seq->name.s, max_i + 1, seq->seq.l);
+			if (!show_profile) printf("%s\t0\t%ld\t%ld\n", seq->name.s, max_i + 1, seq->seq.l);
 			sum_telo += max_i + 1;
 			st = max_i + 1;
 		}
@@ -2019,12 +2022,13 @@ int stk_telo(int argc, char *argv[])
 				if (++l >= len && kh_get(64, h, x) != kh_end(h))
 					hit = 1;
 			} else l = 0, x = 0;
+			if (show_profile) printf("Q\t%s\t%d\t%d\t%d\n", seq->name.s, seq->seq.l - i, score, max);
 			if (seq->seq.l - i >= len) score += hit? 1 : -penalty;
 			if (score > max) max = score, max_i = i;
 			else if (max - score > max_drop) break;
 		}
 		if (max >= min_score) {
-			printf("%s\t%ld\t%ld\t%ld\n", seq->name.s, max_i, seq->seq.l, seq->seq.l);
+			if (!show_profile) printf("%s\t%ld\t%ld\t%ld\n", seq->name.s, max_i, seq->seq.l, seq->seq.l);
 			sum_telo += seq->seq.l - max_i;
 		}
 	}
@@ -2040,7 +2044,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.4-r122\n\n");
+	fprintf(stderr, "Version: 1.4-r130-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         size      report the number sequences and bases\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
