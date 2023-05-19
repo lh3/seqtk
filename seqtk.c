@@ -466,7 +466,7 @@ int stk_comp(int argc, char *argv[])
 		}
 		for (k = 0; p && k < p->n; ++k) {
 			int64_t beg = p->a[k<<1], end = p->a[k<<1|1], cnt[11];
-			int la, lb, lc, na, nb, nc;
+			int la, lb, na, nb, nc;
 			if (beg > 0) la = seq->seq.s[beg-1], lb = seq_nt16_table[la];
 			else la = 'a', lb = -1;
 			na = seq->seq.s[beg]; nb = seq_nt16_table[na]; nc = bitcnt_table[nb];
