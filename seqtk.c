@@ -1,6 +1,7 @@
 /* The MIT License
 
-   Copyright (c) 2008-2016 Broad Institute
+   Copyright (c) 2018-     Dana-Farber Cancer Institute
+                 2008-2018 Broad Institute
 
    Permission is hereby granted, free of charge, to any person obtaining
    a copy of this software and associated documentation files (the
@@ -466,8 +467,8 @@ int stk_comp(int argc, char *argv[])
 		for (k = 0; p && k < p->n; ++k) {
 			int64_t beg = p->a[k<<1], end = p->a[k<<1|1], cnt[11];
 			int la, lb, lc, na, nb, nc;
-			if (beg > 0) la = seq->seq.s[beg-1], lb = seq_nt16_table[la], lc = bitcnt_table[lb];
-			else la = 'a', lb = -1, lc = 0;
+			if (beg > 0) la = seq->seq.s[beg-1], lb = seq_nt16_table[la];
+			else la = 'a', lb = -1;
 			na = seq->seq.s[beg]; nb = seq_nt16_table[na]; nc = bitcnt_table[nb];
 			memset(cnt, 0, 11 * sizeof(int64_t));
 			for (i = beg; i < end; ++i) {
@@ -491,7 +492,7 @@ int stk_comp(int argc, char *argv[])
 						if (b == 10 || b == 5) ++cnt[10];
 					}
 				}
-				la = a; lb = b; lc = c;
+				la = a; lb = b;
 			}
 			if (h) printf("%s\t%ld\t%ld", seq->name.s, beg, end);
 			else printf("%s\t%ld", seq->name.s, l);
@@ -1918,13 +1919,130 @@ int stk_fqchk(int argc, char *argv[])
 	return 0;
 }
 
+int stk_size(int argc, char *argv[])
+{
+	gzFile fp;
+	kseq_t *seq;
+	uint64_t n = 0, l = 0;
+	if (argc == 1 && isatty(fileno(stdin))) {
+		fprintf(stderr, "Usage: seqtk size <in.fq>\n");
+		return 1;
+	}
+	fp = argc > 1 && strcmp(argv[1], "-")? gzopen(argv[1], "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
+	seq = kseq_init(fp);
+	while (kseq_read(seq) >= 0) {
+		++n;
+		l += seq->seq.l;
+	}
+	kseq_destroy(seq);
+	gzclose(fp);
+	printf("%lld\t%lld\n", (long long)n, (long long)l);
+	return 0;
+}
+
+int stk_telo(int argc, char *argv[])
+{
+	gzFile fp;
+	kseq_t *seq;
+	char *telo_seq = "CCCTAA";
+	int c, i, j, len, absent, penalty = 1, max_drop = 2000, min_score = 300;
+	uint64_t x, mask, sum_input = 0, sum_telo = 0;
+	khash_t(64) *h;
+
+	while ((c = getopt(argc, argv, "m:p:d:s:")) >= 0) {
+		if (c == 'm') telo_seq = optarg;
+		else if (c == 'p') penalty = atoi(optarg);
+		else if (c == 'd') max_drop = atoi(optarg);
+		else if (c == 's') min_score = atoi(optarg);
+	}
+	if (penalty < 0) penalty = -penalty;
+	if (argc == optind && isatty(fileno(stdin))) {
+		fprintf(stderr, "Usage: seqtk telo [options] <in.fq>\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -m STR     motif [%s]\n", telo_seq);
+		fprintf(stderr, "  -p INT     penalty [%d]\n", penalty);
+		fprintf(stderr, "  -d INT     max drop [%d]\n", max_drop);
+		fprintf(stderr, "  -s INT     min score [%d]\n", min_score);
+		return 1;
+	}
+
+	len = strlen(telo_seq);
+	mask = (1ULL<<2*len) - 1;
+
+	h = kh_init(64); // hash table for all roations of the telomere motif
+	kh_resize(64, h, len * 2);
+	for (i = 0; i < len; ++i) {
+		for (j = 0, x = 0; j < len; ++j) {
+			int c = seq_nt6_table[(uint8_t)telo_seq[(i + j) % len]];
+			assert(c >= 1 && c <= 4);
+			x = x<<2 | (c-1);
+		}
+		kh_put(64, h, x, &absent);
+	}
+
+	fp = argc > 1 && strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
+	if (fp == 0) {
+		fprintf(stderr, "[E::%s] failed to open the input file/stream.\n", __func__);
+		return 1;
+	}
+	seq = kseq_init(fp);
+	while (kseq_read(seq) >= 0) {
+		ssize_t i, l, max_i = -1, st = 0;
+		int64_t score, max;
+		sum_input += seq->seq.l;
+		score = max = 0, max_i = -1;
+		for (i = 0, l = 0, x = 0; i < seq->seq.l; ++i) { // 5'-end, check CCCTAA
+			int hit = 0, c = seq_nt6_table[(uint8_t)seq->seq.s[i]];
+			if (c >= 1 && c <= 4) { // not N
+				x = (x<<2 | (c-1)) & mask;
+				if (++l >= len && kh_get(64, h, x) != kh_end(h)) // x is at least 6bp long and is a telomere motif
+					hit = 1;
+			} else l = 0, x = 0; // N, ambiguous base
+			if (i >= len) score += hit? 1 : -penalty;
+			if (score > max) max = score, max_i = i;
+			else if (max - score > max_drop) break;
+		}
+		if (max >= min_score) {
+			printf("%s\t0\t%ld\t%ld\n", seq->name.s, max_i + 1, seq->seq.l);
+			sum_telo += max_i + 1;
+			st = max_i + 1;
+		}
+		score = max = 0, max_i = -1;
+		for (i = seq->seq.l - 1, l = 0, x = 0; i >= st; --i) { // 3'-end; similar to the for loop above
+			int hit = 0, c = seq_nt6_table[(uint8_t)seq->seq.s[i]];
+			if (c >= 1 && c <= 4) {
+				x = (x<<2 | (4-c)) & mask;
+				if (++l >= len && kh_get(64, h, x) != kh_end(h))
+					hit = 1;
+			} else l = 0, x = 0;
+			if (seq->seq.l - i >= len) score += hit? 1 : -penalty;
+			if (score > max) max = score, max_i = i;
+			else if (max - score > max_drop) break;
+		}
+		if (max >= min_score) {
+			printf("%s\t%ld\t%ld\t%ld\n", seq->name.s, max_i, seq->seq.l, seq->seq.l);
+			sum_telo += seq->seq.l - max_i;
+		}
+	}
+	kh_destroy(64, h);
+	kseq_destroy(seq);
+	gzclose(fp);
+	fprintf(stderr, "%ld\t%ld\n", (long)sum_telo, (long)sum_input);
+	return 0;
+}
+
 /* main function */
 static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.3-r117-dirty\n\n");
+	fprintf(stderr, "Version: 1.4-r122\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
+	fprintf(stderr, "         size      report the number sequences and bases\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
 	fprintf(stderr, "         sample    subsample sequences\n");
 	fprintf(stderr, "         subseq    extract subsequences from FASTA/Q\n");
@@ -1944,6 +2062,7 @@ static int usage()
 	fprintf(stderr, "         gap       get the gap locations\n");
 	fprintf(stderr, "         listhet   extract the position of each het\n");
 	fprintf(stderr, "         hpc       homopolyer-compressed sequence\n");
+	fprintf(stderr, "         telo      identify telomere repeats in asm or long reads\n");
 	fprintf(stderr, "\n");
 	return 1;
 }
@@ -1973,6 +2092,8 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "rename") == 0) return stk_rename(argc-1, argv+1);
 	else if (strcmp(argv[1], "split") == 0) return stk_split(argc-1, argv+1);
 	else if (strcmp(argv[1], "hpc") == 0) return stk_hpc(argc-1, argv+1);
+	else if (strcmp(argv[1], "size") == 0) return stk_size(argc-1, argv+1);
+	else if (strcmp(argv[1], "telo") == 0) return stk_telo(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[main] unrecognized command '%s'. Abort!\n", argv[1]);
 		return 1;

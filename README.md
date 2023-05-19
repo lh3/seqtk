@@ -59,3 +59,6 @@ Seqtk Examples
 
         seqtk trimfq -b 5 -e 10 in.fa > out.fa
 
+* Find telomere (TTAGGG)n repeats:
+
+        seqtk telo seq.fa > telo.bed 2> telo.count
