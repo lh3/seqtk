@@ -29,6 +29,7 @@
 #define AC_KSEQ_H
 
 #include <ctype.h>
+#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -90,8 +91,12 @@ typedef struct __kstring_t {
 #define kroundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x))
 #endif
 
+#ifndef kroundup64
+#define kroundup64(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, (x)|=(x)>>32, ++(x))
+#endif
+
 #define __KS_GETUNTIL(__read, __bufsize) \
-	static int ks_getuntil2(kstream_t *ks, int delimiter, kstring_t *str, int *dret, int append) \
+	static int64_t ks_getuntil2(kstream_t *ks, int delimiter, kstring_t *str, int *dret, int append) \
 	{ \
 		int gotany = 0; \
 		if (dret) *dret = 0; \
@@ -122,7 +127,7 @@ typedef struct __kstring_t {
 			} else i = 0; /* never come to here! */ \
 			if (str->m - str->l < (size_t)(i - ks->begin + 1)) { \
 				str->m = str->l + (i - ks->begin) + 1; \
-				kroundup32(str->m); \
+				kroundup64(str->m); \
 				str->s = (char*)realloc(str->s, str->m); \
 			} \
 			gotany = 1; \
@@ -175,7 +180,7 @@ typedef struct __kstring_t {
    -3   error reading stream
  */
 #define __KSEQ_READ(SCOPE) \
-	SCOPE int kseq_read(kseq_t *seq) \
+	SCOPE int64_t kseq_read(kseq_t *seq) \
 	{ \
 		int c,r; \
 		kstream_t *ks = seq->f; \
@@ -199,7 +204,7 @@ typedef struct __kstring_t {
 		if (c == '>' || c == '@') seq->last_char = c; /* the first header char has been read */ \
 		if (seq->seq.l + 1 >= seq->seq.m) { /* seq->seq.s[seq->seq.l] below may be out of boundary */ \
 			seq->seq.m = seq->seq.l + 2; \
-			kroundup32(seq->seq.m); /* rounded to the next closest 2^k */ \
+			kroundup64(seq->seq.m); /* rounded to the next closest 2^k */ \
 			seq->seq.s = (char*)realloc(seq->seq.s, seq->seq.m); \
 		} \
 		seq->seq.s[seq->seq.l] = 0;	/* null terminated string */ \
@@ -238,6 +243,6 @@ typedef struct __kstring_t {
 	__KSEQ_TYPE(type_t) \
 	extern kseq_t *kseq_init(type_t fd); \
 	void kseq_destroy(kseq_t *ks); \
-	int kseq_read(kseq_t *seq);
+	int64_t kseq_read(kseq_t *seq);
 
 #endif
