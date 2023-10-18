@@ -62,3 +62,4 @@ Seqtk Examples
 * Find telomere (TTAGGG)n repeats:
 
         seqtk telo seq.fa > telo.bed 2> telo.count
+        In this folk, the origin sequences will be output
