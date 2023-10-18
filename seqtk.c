@@ -2010,7 +2010,8 @@ int stk_telo(int argc, char *argv[])
 			else if (max - score > max_drop) break;
 		}
 		if (max >= min_score) {
-			if (!show_profile) printf("%s\t0\t%ld\t%ld\n", seq->name.s, max_i + 1, seq->seq.l);
+			if (!show_profile) printf(">%s\t0\t%ld\t%ld\n", seq->name.s, max_i + 1, seq->seq.l);
+			printf("%s\n", seq->seq.s);
 			sum_telo += max_i + 1;
 			st = max_i + 1;
 		}
@@ -2028,7 +2029,8 @@ int stk_telo(int argc, char *argv[])
 			else if (max - score > max_drop) break;
 		}
 		if (max >= min_score) {
-			if (!show_profile) printf("%s\t%ld\t%ld\t%ld\n", seq->name.s, max_i, seq->seq.l, seq->seq.l);
+			if (!show_profile) printf(">%s\t%ld\t%ld\t%ld\n", seq->name.s, max_i, seq->seq.l, seq->seq.l);
+			printf("%s\n", seq->seq.s); 
 			sum_telo += seq->seq.l - max_i;
 		}
 	}
