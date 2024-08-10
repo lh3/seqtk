@@ -268,6 +268,21 @@ static inline void stk_printseq_renamed(FILE *fp, const kseq_t *s, int line_len,
 	}
 }
 
+static inline void stk_printseq_suffix(FILE *fp, const kseq_t *s, int line_len, const char *suffix)
+{
+	fputc(s->qual.l? '@' : '>', fp);
+	fputs(s->name.s, fp);
+	if (suffix) fputs(suffix, fp);
+	if (s->comment.l) {
+		fputc(' ', fp); fputs(s->comment.s, fp);
+	}
+	stk_printstr(fp, &s->seq, line_len);
+	if (s->qual.l) {
+		fputc('+', fp);
+		stk_printstr(fp, &s->qual, line_len);
+	}
+}
+
 static inline void stk_printseq(FILE *fp, const kseq_t *s, int line_len)
 {
 	stk_printseq_renamed(fp, s, line_len, 0, -1);
@@ -1492,7 +1507,7 @@ int stk_seq(int argc, char *argv[])
 		if (flag & (4|2048)) { // option -r or -R: reverse complement
 			int c0, c1;
 			if (flag & 2048)
-				stk_printseq(stdout, seq, line_len);
+				stk_printseq_suffix(stdout, seq, line_len, "+");
 			for (i = 0; i < seq->seq.l>>1; ++i) { // reverse complement sequence
 				c0 = comp_tab[(int)seq->seq.s[i]];
 				c1 = comp_tab[(int)seq->seq.s[seq->seq.l - 1 - i]];
@@ -1514,7 +1529,10 @@ int stk_seq(int argc, char *argv[])
 				if (seq_nt16to4_table[seq_nt16_table[(int)seq->seq.s[i]]] > 3) break;
 			if (i < seq->seq.l) continue;
 		}
-		stk_printseq(stdout, seq, line_len);
+		if (flag & 2048)
+			stk_printseq_suffix(stdout, seq, line_len, "-");
+		else
+			stk_printseq(stdout, seq, line_len);
 	}
 	kseq_destroy(seq);
 	gzclose(fp);
@@ -2048,7 +2066,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.4-r131-dirty\n\n");
+	fprintf(stderr, "Version: 1.4-r132-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         size      report the number sequences and bases\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
