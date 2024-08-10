@@ -1374,7 +1374,7 @@ int stk_seq(int argc, char *argv[])
 	khash_t(reg) *h = 0;
 	krand_t *kr = 0;
 
-	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:cVUX:SF:x")) >= 0) {
+	while ((c = getopt(argc, argv, "N12q:l:Q:aACrn:s:f:M:L:cVUX:SF:xR")) >= 0) {
 		switch (c) {
 			case 'a':
 			case 'A': flag |= 1; break;
@@ -1388,6 +1388,7 @@ int stk_seq(int argc, char *argv[])
 			case 'U': flag |= 256; break;
 			case 'S': flag |= 512; break;
 			case 'x': flag |= 1024; break;
+			case 'R': flag |= 2048; break;
 			case 'M': h = stk_reg_read(optarg); break;
 			case 'n': mask_chr = *optarg; break;
 			case 'Q': qual_shift = atoi(optarg); break;
@@ -1416,6 +1417,7 @@ int stk_seq(int argc, char *argv[])
 		fprintf(stderr, "         -F CHAR   fake FASTQ quality []\n");
 		fprintf(stderr, "         -c        mask complement region (effective with -M)\n");
 		fprintf(stderr, "         -r        reverse complement\n");
+		fprintf(stderr, "         -R        output both forward and reverse complement\n");
 		fprintf(stderr, "         -A        force FASTA output (discard quality)\n");
 		fprintf(stderr, "         -C        drop comments at the header lines\n");
 		fprintf(stderr, "         -N        drop sequences containing ambiguous bases\n");
@@ -1487,8 +1489,10 @@ int stk_seq(int argc, char *argv[])
 		}
 		if (flag & 2) seq->comment.l = 0; // option -C: drop fasta/q comments
 		if (h) stk_mask(seq, h, flag&8, mask_chr); // masking
-		if (flag & 4) { // option -r: reverse complement
+		if (flag & (4|2048)) { // option -r or -R: reverse complement
 			int c0, c1;
+			if (flag & 2048)
+				stk_printseq(stdout, seq, line_len);
 			for (i = 0; i < seq->seq.l>>1; ++i) { // reverse complement sequence
 				c0 = comp_tab[(int)seq->seq.s[i]];
 				c1 = comp_tab[(int)seq->seq.s[seq->seq.l - 1 - i]];
@@ -2044,7 +2048,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.4-r130-dirty\n\n");
+	fprintf(stderr, "Version: 1.4-r131-dirty\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         size      report the number sequences and bases\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");
