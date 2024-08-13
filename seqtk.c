@@ -2032,7 +2032,10 @@ int stk_telo(int argc, char *argv[])
 			else if (max - score > max_drop) break;
 		}
 		if (max >= min_score) {
-			if (!show_profile) printf("%s\t0\t%ld\t%ld\n", seq->name.s, max_i + 1, seq->seq.l);
+			if (!show_profile) printf(">%s\t0\t%ld\t%ld\n", seq->name.s, max_i + 1, seq->seq.l);
+			printf("%s\n", seq->seq.s);
+			if (!show_profile) printf(">%s_remove\t%ld\t%ld\t%ld\n", seq->name.s, max_i, seq->seq.l, seq->seq.l);
+			printf("%s\n", seq->seq.s + max_i + 1);
 			sum_telo += max_i + 1;
 			st = max_i + 1;
 		}
@@ -2050,7 +2053,13 @@ int stk_telo(int argc, char *argv[])
 			else if (max - score > max_drop) break;
 		}
 		if (max >= min_score) {
-			if (!show_profile) printf("%s\t%ld\t%ld\t%ld\n", seq->name.s, max_i, seq->seq.l, seq->seq.l);
+			if (!show_profile) printf(">%s\t%ld\t%ld\t%ld\n", seq->name.s, max_i, seq->seq.l, seq->seq.l);
+			printf("%s\n", seq->seq.s);
+			if (!show_profile) printf(">%s_remove\t%ld\t%ld\t%ld\n", seq->name.s, max_i, seq->seq.l, seq->seq.l);
+			char temp_char = seq->seq.s[max_i];
+			seq->seq.s[max_i] = '\0';
+			printf("%s\n", seq->seq.s);
+			seq->seq.s[max_i] = temp_char;
 			sum_telo += seq->seq.l - max_i;
 		}
 	}
