@@ -1362,7 +1362,7 @@ void stk_mask(kseq_t *seq, const khash_t(reg) *h, int is_complement, int mask_ch
 		} else {
 			int8_t *mask = calloc(seq->seq.l, 1);
 			for (i = 0; i < p->n; ++i) {
-				int64_t beg = p->a[i<<1], end = p->a[i<<1|1];    
+				int64_t beg = p->a[i<<1], end = p->a[i<<1|1];
 				if (end >= seq->seq.l) end = seq->seq.l;
 				for (j = beg; j < end; ++j) mask[j] = 1;
 			}
@@ -2066,7 +2066,7 @@ static int usage()
 {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:   seqtk <command> <arguments>\n");
-	fprintf(stderr, "Version: 1.4-r132-dirty\n\n");
+	fprintf(stderr, "Version: 1.5-r133\n\n");
 	fprintf(stderr, "Command: seq       common transformation of FASTA/Q\n");
 	fprintf(stderr, "         size      report the number sequences and bases\n");
 	fprintf(stderr, "         comp      get the nucleotide composition of FASTA/Q\n");

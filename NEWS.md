@@ -1,3 +1,19 @@
+Release 1.5-r133 (1 June 2025)
+------------------------------
+
+Notable changes:
+
+ * Improvement: support chromosomes longer than 2Gb (#192), provided @c-zhou
+
+ * New feature: added option `-R` to the seq command to output sequences on
+   both strands.
+
+ * New feature: added option `-P` to telo to output scores
+
+(1.5: 1 June 2025, r133)
+
+
+
 Release 1.4-r122 (19 May 2023)
 ------------------------------
 
