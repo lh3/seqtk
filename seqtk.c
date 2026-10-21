@@ -236,7 +236,7 @@ char comp_tab[] = {
 
 static void stk_printstr(FILE *fp, const kstring_t *s, unsigned line_len)
 {
-	if (line_len != UINT_MAX && line_len != 0) {
+	if (line_len != UINT_MAX && line_len != 0 && s->l > 0) {
 		int64_t i, rest = s->l;
 		for (i = 0; i < s->l; i += line_len, rest -= line_len) {
 			fputc('\n', fp);
@@ -246,14 +246,14 @@ static void stk_printstr(FILE *fp, const kstring_t *s, unsigned line_len)
 		fputc('\n', fp);
 	} else {
 		fputc('\n', fp);
-		fputs(s->s, fp);
+		if (s->l) fputs(s->s, fp);
 		fputc('\n', fp);
 	}
 }
 
 static inline void stk_printseq_renamed(FILE *fp, const kseq_t *s, int line_len, const char *prefix, int64_t n)
 {
-	fputc(s->qual.l? '@' : '>', fp);
+	fputc(s->is_fastq? '@' : '>', fp);
 	if (n >= 0) {
 		if (prefix) fputs(prefix, fp);
 		fprintf(fp, "%lld", (long long)n);
@@ -262,7 +262,7 @@ static inline void stk_printseq_renamed(FILE *fp, const kseq_t *s, int line_len,
 		fputc(' ', fp); fputs(s->comment.s, fp);
 	}
 	stk_printstr(fp, &s->seq, line_len);
-	if (s->qual.l) {
+	if (s->is_fastq) {
 		fputc('+', fp);
 		stk_printstr(fp, &s->qual, line_len);
 	}
@@ -270,14 +270,14 @@ static inline void stk_printseq_renamed(FILE *fp, const kseq_t *s, int line_len,
 
 static inline void stk_printseq_suffix(FILE *fp, const kseq_t *s, int line_len, const char *suffix)
 {
-	fputc(s->qual.l? '@' : '>', fp);
+	fputc(s->is_fastq? '@' : '>', fp);
 	fputs(s->name.s, fp);
 	if (suffix) fputs(suffix, fp);
 	if (s->comment.l) {
 		fputc(' ', fp); fputs(s->comment.s, fp);
 	}
 	stk_printstr(fp, &s->seq, line_len);
-	if (s->qual.l) {
+	if (s->is_fastq) {
 		fputc('+', fp);
 		stk_printstr(fp, &s->qual, line_len);
 	}
@@ -1207,7 +1207,11 @@ int stk_hrun(int argc, char *argv[])
 
 static void cpy_kstr(kstring_t *dst, const kstring_t *src)
 {
-	if (src->l == 0) return;
+	if (src->l == 0) {
+		dst->l = 0;
+		if (dst->s) dst->s[0] = 0;
+		return;
+	}
 	if (src->l + 1 > dst->m) {
 		dst->m = src->l + 1;
 		kroundup64(dst->m);
@@ -1223,6 +1227,7 @@ static void cpy_kseq(kseq_t *dst, const kseq_t *src)
 	cpy_kstr(&dst->seq,  &src->seq);
 	cpy_kstr(&dst->qual, &src->qual);
 	cpy_kstr(&dst->comment, &src->comment);
+	dst->is_fastq = src->is_fastq;
 }
 
 int stk_sample(int argc, char *argv[])
@@ -1279,8 +1284,8 @@ int stk_sample(int argc, char *argv[])
 		}
 		for (i = 0; i < num; ++i) {
 			kseq_t *p = &buf[i];
-			if (p->seq.l) stk_printseq(stdout, p, UINT_MAX);
-			free(p->seq.s); free(p->qual.s); free(p->name.s);
+			if (i < n_seqs) stk_printseq(stdout, p, UINT_MAX);
+			free(p->seq.s); free(p->qual.s); free(p->name.s); free(p->comment.s);
 		}
 		if (buf != NULL) free(buf);
 	} else {
@@ -1492,7 +1497,7 @@ int stk_seq(int argc, char *argv[])
 		else if ((flag & 1024) && mask_chr > 0)
 			for (i = 0; i < seq->seq.l; ++i)
 				seq->seq.s[i] = islower(seq->seq.s[i])? mask_chr : seq->seq.s[i];
-		if (flag & 1) seq->qual.l = 0; // option -a: fastq -> fasta
+		if (flag & 1) seq->qual.l = seq->is_fastq = 0; // option -a: fastq -> fasta
 		else if (fake_qual >= 33 && fake_qual <= 127) {
 			if (seq->qual.m < seq->seq.m) {
 				seq->qual.m = seq->seq.m;
@@ -1501,6 +1506,7 @@ int stk_seq(int argc, char *argv[])
 			seq->qual.l = seq->seq.l;
 			memset(seq->qual.s, fake_qual, seq->qual.l);
 			seq->qual.s[seq->qual.l] = 0;
+			seq->is_fastq = 1;
 		}
 		if (flag & 2) seq->comment.l = 0; // option -C: drop fasta/q comments
 		if (h) stk_mask(seq, h, flag&8, mask_chr); // masking
